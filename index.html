@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="hu">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0e0e1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="EDTI Stúdió">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon.svg">
+    <title>EDTI Stúdió AI Workstation</title>
+    <link rel="stylesheet" href="style.css?v=7">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            overflow-y: auto;
+            height: auto;
+            min-height: 100vh;
+            /* Az egeret követő fény — a JS itt is állítja a --light-x / --light-y
+               CSS-változókat. Default: a régi statikus jobb-felső pozíció, hogy
+               JS-mentes nézőknél is jól nézzen ki. */
+            background:
+                radial-gradient(circle at var(--light-x, 90%) var(--light-y, 8%),
+                                rgba(99, 102, 241, 0.32) 0%,
+                                rgba(99, 102, 241, 0.10) 18%,
+                                rgba(30, 27, 75, 0.0) 38%),
+                radial-gradient(circle at top right, #1e1b4b, #0b0e14 40%);
+            background-attachment: fixed;
+        }
+        /* Touch / pointer:coarse eszközök, vagy reduced-motion → letiltjuk az
+           interaktivitást és visszaadjuk a sima statikus hátteret, hogy
+           se ne lagg-oljon, se ne fárassza az akadálymentes-felhasználót. */
+        @media (hover: none), (prefers-reduced-motion: reduce) {
+            body { background: radial-gradient(circle at top right, #1e1b4b, #0b0e14 40%) !important; }
+        }
+        /* PWA install CTA — megjelenik ha a beforeinstallprompt event jött,
+           vagy iOS-en mindig (Safari nem ad install promptot, ott manuálisan
+           kell "Hozzáadás a kezdőképernyőhöz"). */
+        #pwa-install-banner {
+            display: none;
+            margin: 1.5rem auto 0;
+            max-width: 520px;
+            padding: 0.9rem 1.1rem;
+            background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(167,139,250,0.10));
+            border: 1px solid rgba(99,102,241,0.45);
+            border-radius: 14px;
+            color: #e0e0e0;
+            font-size: 0.92rem;
+            text-align: left;
+            box-shadow: 0 4px 18px rgba(99,102,241,0.18);
+        }
+        #pwa-install-banner button {
+            background: #6366f1;
+            border: none;
+            color: #fff;
+            padding: 8px 18px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 0.5rem;
+        }
+        #pwa-install-banner button:hover { background: #7c7fff; }
+        #pwa-install-banner .pwa-ios-hint {
+            color: #a78bfa;
+            font-size: 0.85rem;
+            margin-top: 0.4rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="hub-page">
+        <div class="hub-header">
+            <div style="font-size:0.8rem; color:var(--accent-color); font-weight:600; letter-spacing:1px; text-transform:uppercase; margin-bottom:12px;">EDTI Stúdió</div>
+            <h1>AI Workstation</h1>
+            <p>Válassz eszközt a folytatáshoz</p>
+            <div id="pwa-install-banner">
+                <strong>📲 Telepítsd telefonra:</strong>
+                <span id="pwa-install-text">A telepítés után az EDTI Stúdió ott lesz a kezdőképernyőn, és a galériából „Megosztás → EDTI Stúdió”-val 1 koppintással küldhetsz be videót feldolgozásra.</span>
+                <div>
+                    <button id="pwa-install-btn" type="button">Telepítés</button>
+                    <span class="pwa-ios-hint" id="pwa-ios-hint" style="display:none;">iPhone-on: Safari → Megosztás → „Hozzáadás a kezdőképernyőhöz”.</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="hub-grid" id="hubGrid">
+            <!-- Szinkron / Dubbing -->
+            <a href="dub.html" class="tool-card" data-tile-id="dub">
+                <div class="tool-card-icon">🎙️</div>
+                <div class="tool-card-title">Szinkron</div>
+                <div class="tool-card-subtitle">Dubbing</div>
+                <div class="tool-card-desc">AI hangszinkron idegen nyelvű videókhoz. Automatikus felismerés, fordítás és hangklónozás.</div>
+                <div class="tool-card-arrow">→</div>
+            </a>
+
+            <!-- Felirat / Subtitling -->
+            <a href="subtitle.html" class="tool-card" data-tile-id="subtitle">
+                <div class="tool-card-icon">💬</div>
+                <div class="tool-card-title">Felirat</div>
+                <div class="tool-card-subtitle">Subtitling</div>
+                <div class="tool-card-desc">Felirat generálása és lefordítása más nyelvre. SRT és VTT formátumban exportálható.</div>
+                <div class="tool-card-arrow">→</div>
+            </a>
+
+            <!-- Leirat / Transcription -->
+            <a href="transcribe.html" class="tool-card" data-tile-id="transcribe">
+                <div class="tool-card-icon">📄</div>
+                <div class="tool-card-title">Leirat</div>
+                <div class="tool-card-subtitle">Transcription</div>
+                <div class="tool-card-desc">Hanganyag vagy videó szöveges átírása. Letölthető TXT, SRT és JSON formátumban.</div>
+                <div class="tool-card-arrow">→</div>
+            </a>
+
+            <!-- Intro-Outro -->
+            <a href="intro_outro.html" class="tool-card" data-tile-id="intro_outro">
+                <div class="tool-card-icon">🎬</div>
+                <div class="tool-card-title">Intro-Outro</div>
+                <div class="tool-card-subtitle">Video Branding</div>
+                <div class="tool-card-desc">EDTI intro és outro automatikus hozzáfűzése videókhoz. Magyar és angol verzióban.</div>
+                <div class="tool-card-arrow">→</div>
+            </a>
+
+            <!-- PPT Háttércsere -->
+            <a href="ppt_replace.html" class="tool-card" data-tile-id="ppt_replace">
+                <div class="tool-card-icon">🖼️</div>
+                <div class="tool-card-title">PPT Háttércsere</div>
+                <div class="tool-card-subtitle">Background Replacement</div>
+                <div class="tool-card-desc">Prezentációs háttér automatikus cseréje előadói videókban. Magyar PPT → angol verzió vagy bármilyen új PPTX.</div>
+                <div class="tool-card-arrow">→</div>
+            </a>
+
+            <!-- PPT Narráció -->
+            <a href="ppt_narrate.html" class="tool-card" data-tile-id="ppt_narrate">
+                <div class="tool-card-icon">🗣️</div>
+                <div class="tool-card-title">PPT Narráció</div>
+                <div class="tool-card-subtitle">XTTS Speaker Notes</div>
+                <div class="tool-card-desc">PPTX dia-jegyzetekből narrált videó: az XTTS klónozott hanggal felolvassa a Speaker Notes-ot diánként, és összeállítja a végső MP4-et.</div>
+                <div class="tool-card-arrow">→</div>
+            </a>
+
+            <!-- Intelligens Tallózás -->
+            <a href="course.html" class="tool-card" data-tile-id="course">
+                <div class="tool-card-icon">🗂️</div>
+                <div class="tool-card-title">Intelligens Tallózás</div>
+                <div class="tool-card-subtitle">Browser Upload</div>
+                <div class="tool-card-desc">Kurzusmappa vagy ZIP feltöltése közvetlenül böngészőből. A szerver feldolgozza, majd ZIP-ben adja vissza az eredményt.</div>
+                <div class="tool-card-arrow">→</div>
+            </a>
+
+            <!-- Flow Builder — node-os munkafolyamat-tervező -->
+            <a href="flow.html" class="tool-card" data-tile-id="flow" style="border-color:rgba(99,102,241,0.45); background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(167,139,250,0.04));">
+                <div class="tool-card-icon">🕸️</div>
+                <div class="tool-card-title">Flow Builder</div>
+                <div class="tool-card-subtitle">Node-os munkafolyamat</div>
+                <div class="tool-card-desc">N8n-szerű kanvas: szinkron + intro/outro + felirat egy láncban. Az asset-ek a szerveren maradnak — nincs köztes le-és újra-feltöltés. Sablonok mentése/megosztása workspace-szinten.</div>
+                <div class="tool-card-arrow">→</div>
+            </a>
+
+            <!-- Saját profil (minden user-nek látható: jelszó-csere + adatok) -->
+            <a href="profile.html" class="tool-card" data-tile-id="profile" style="border-color:rgba(16,185,129,0.35);">
+                <div class="tool-card-icon">👤</div>
+                <div class="tool-card-title">Saját profil</div>
+                <div class="tool-card-subtitle">Jelszó + adatok</div>
+                <div class="tool-card-desc">A saját adataid megtekintése és a jelszó megváltoztatása. Minden bejelentkezett user-nek elérhető.</div>
+                <div class="tool-card-arrow">→</div>
+            </a>
+
+            <!-- Admin (csak admin role-nak látható) -->
+            <a id="adminCard" href="admin.html" class="tool-card" data-tile-id="admin" style="display:none; border-color:rgba(239,68,68,0.4);">
+                <div class="tool-card-icon">🛡️</div>
+                <div class="tool-card-title">Admin</div>
+                <div class="tool-card-subtitle">Felhasználók + audit log</div>
+                <div class="tool-card-desc">Új felhasználó, jelszó-csere, szerepkör-váltás, törlés. Audit log megtekintés. Csak admin role-nak elérhető.</div>
+                <div class="tool-card-arrow">→</div>
+            </a>
+        </div>
+
+        <div class="hub-footer">
+            <span id="userDisplay"></span>
+            <span>·</span>
+            <a href="flow.html" style="color:inherit; text-decoration:none;">🕸️ Flow Builder</a>
+            <span>·</span>
+            <a href="profile.html" style="color:inherit; text-decoration:none;">Saját profil</a>
+            <span>·</span>
+            <a href="batch.html" style="color:inherit; text-decoration:none;">Batch mód</a>
+            <span>·</span>
+            <button onclick="logoutUser()" style="background:none; border:none; color:inherit; cursor:pointer; font-size:inherit; padding:0;">Kijelentkezés</button>
+        </div>
+    </div>
+
+    <script src="mock_core.js"></script>
+<script src="mock_routes_core.js"></script>
+<script src="mock_routes_batch.js"></script>
+<script src="mock_routes_ppt.js"></script>
+<script src="mock_routes_flow.js"></script>
+<script src="mock_routes_subtitle.js"></script>
+<script src="mock_routes_misc.js"></script>
+<script src="shared.js?v=11"></script>
+    <script>
+        // ─── Mouse-following light ────────────────────────────────────────
+        // A rAF-loop lerp-pel követi az egeret — a CSS-változót minden frame
+        // egyszer írjuk, így nincs reflow, csak repaint, ami GPU-n megy.
+        // 0.08 smoothness "elegant" érzést ad — magasabb érték ragad az
+        // egérhez (lagg-ér), alacsonyabb úszik (későn érkezik).
+        //
+        // pointer:coarse / prefers-reduced-motion → kihagyjuk (lásd CSS-media)
+        (function () {
+            const reduce = matchMedia("(hover: none), (prefers-reduced-motion: reduce)");
+            if (reduce.matches) return;
+            const root = document.documentElement;
+            // Cél (target — ahova az egér mutat) + jelenlegi (current — ahol a fény van)
+            // Százalékban a viewport-méretéhez (vw/vh) — így a CSS-változókkal
+            // egyenesen kompatibilis (radial-gradient circle at X% Y%).
+            let targetX = 90, targetY = 8;     // induló jobb-felső pozíció (egyezik a default-tal)
+            let currentX = 90, currentY = 8;
+            let raf = 0;
+            // SMOOTH 0.22 — érezhető követés gyors mozgásnál is, de még mindig
+            // simán átadja a célt (nem ragad rá direktbe). 0.08 elegáns volt,
+            // de gyors egér-tempónál lemaradt; 0.22 a kompromisszum.
+            const SMOOTH = 0.22;
+            const EPS = 0.05;  // 0.05% alatt nem írjuk a CSS-változót — nincs frame-wasting
+
+            function tick() {
+                const dx = targetX - currentX;
+                const dy = targetY - currentY;
+                if (Math.abs(dx) < EPS && Math.abs(dy) < EPS) {
+                    raf = 0;  // megálltunk — nincs több rAF amíg új mouse-event nem érkezik
+                    return;
+                }
+                currentX += dx * SMOOTH;
+                currentY += dy * SMOOTH;
+                root.style.setProperty('--light-x', currentX.toFixed(2) + '%');
+                root.style.setProperty('--light-y', currentY.toFixed(2) + '%');
+                raf = requestAnimationFrame(tick);
+            }
+
+            window.addEventListener('pointermove', (e) => {
+                // viewport-relatív százalék — clientX/Y ÷ innerWidth/Height
+                targetX = (e.clientX / window.innerWidth) * 100;
+                targetY = (e.clientY / window.innerHeight) * 100;
+                if (!raf) raf = requestAnimationFrame(tick);
+            }, { passive: true });
+
+            // Ha a felhasználó kiviszi az egeret a window-ról, finoman vissza-úszunk
+            // a default jobb-felső sarokba — egyenletes záró-érzet, nem ott marad
+            // ahol kiment.
+            window.addEventListener('pointerleave', () => {
+                targetX = 90; targetY = 8;
+                if (!raf) raf = requestAnimationFrame(tick);
+            }, { passive: true });
+        })();
+
+        // Service worker registration (silent on browsers without SW support).
+        if (false /* demo: SW off */) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch((err) => {
+                    console.warn('SW registration failed:', err);
+                });
+            });
+        }
+
+        // PWA install banner — Android Chrome dispatches `beforeinstallprompt`
+        // when the app meets PWA install criteria. We stash the event and
+        // show our own button so the timing is user-driven (not an OS popup).
+        // On iOS Safari there is no install event; we fall back to a hint
+        // explaining the manual "Add to Home Screen" path.
+        let _deferredInstallPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            _deferredInstallPrompt = e;
+            const banner = document.getElementById('pwa-install-banner');
+            if (banner) banner.style.display = 'block';
+        });
+        function _isIOS() {
+            return /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
+        }
+        function _isStandalone() {
+            return window.matchMedia('(display-mode: standalone)').matches ||
+                window.navigator.standalone === true;
+        }
+
+        // Csempe-sorrend a localStorage-ból (a Profil oldalon szerkeszthető).
+        // A user-egyedi sorrendet csak akkor alkalmazzuk, ha a saved-lista
+        // tartalmazza a csempe data-tile-id-jét — új, későbbi csempék a végére
+        // kerülnek (CSS-szintű sorrendben).
+        function applyTileOrder() {
+            const grid = document.getElementById('hubGrid');
+            if (!grid) return;
+            let saved;
+            try {
+                saved = JSON.parse(localStorage.getItem('edti_hub_tile_order') || '[]');
+            } catch (_) { saved = []; }
+            if (!Array.isArray(saved) || saved.length === 0) return;
+            const cards = Array.from(grid.querySelectorAll('.tool-card[data-tile-id]'));
+            const byId = {};
+            cards.forEach(c => { byId[c.dataset.tileId] = c; });
+            const ordered = [];
+            const seen = new Set();
+            for (const id of saved) {
+                if (byId[id] && !seen.has(id)) { ordered.push(byId[id]); seen.add(id); }
+            }
+            // A saved-listán kívül maradt csempék (új feature-ök, admin-only stb.)
+            // az eredeti DOM-sorrendben a végére kerülnek.
+            cards.forEach(c => { if (!seen.has(c.dataset.tileId)) ordered.push(c); });
+            // Append a már létező elemeket — az appendChild áthelyez, nem clone.
+            ordered.forEach(el => grid.appendChild(el));
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await initSharedSession();
+            applyTileOrder();
+            // Admin-kártya csak admin role-nak látható
+            try {
+                if (typeof isCurrentUserAdmin === 'function' && isCurrentUserAdmin()) {
+                    const card = document.getElementById('adminCard');
+                    if (card) card.style.display = '';
+                }
+            } catch (_) { /* nem akut */ }
+
+            // PWA install CTA wiring
+            const banner = document.getElementById('pwa-install-banner');
+            const btn = document.getElementById('pwa-install-btn');
+            const iosHint = document.getElementById('pwa-ios-hint');
+            if (banner && !_isStandalone()) {
+                if (_isIOS()) {
+                    banner.style.display = 'block';
+                    if (btn) btn.style.display = 'none';
+                    if (iosHint) iosHint.style.display = 'inline-block';
+                }
+                if (btn) {
+                    btn.addEventListener('click', async () => {
+                        if (!_deferredInstallPrompt) return;
+                        _deferredInstallPrompt.prompt();
+                        try { await _deferredInstallPrompt.userChoice; } catch (e) { /* noop */ }
+                        _deferredInstallPrompt = null;
+                        banner.style.display = 'none';
+                    });
+                }
+            }
+        });
+    </script>
+</body>
+</html>

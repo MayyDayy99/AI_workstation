@@ -1,0 +1,1757 @@
+:root {
+    --bg-color: #0b0e14;
+    --sidebar-bg: #11141b;
+    --card-bg: rgba(30, 35, 45, 0.7);
+    --text-primary: #ffffff;
+    --text-secondary: #94a3b8;
+    --accent-color: #6366f1;
+    /* Modern Indigo */
+    --accent-hover: #4f46e5;
+    --border-color: rgba(255, 255, 255, 0.1);
+    --input-bg: #0f172a;
+    --danger: #ef4444;
+    --success: #10b981;
+    --glass-bg: rgba(15, 23, 42, 0.8);
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Outfit', 'Inter', sans-serif;
+    background: radial-gradient(circle at top right, #1e1b4b, #0b0e14 40%);
+    background-attachment: fixed;
+    color: var(--text-primary);
+    height: 100vh;
+    overflow: hidden;
+}
+
+.app-container {
+    display: flex;
+    height: 100%;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 300px;
+    background-color: var(--sidebar-bg);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    padding: 30px 20px;
+    backdrop-filter: blur(10px);
+}
+
+.brand h1 {
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin-bottom: 2.5rem;
+    background: linear-gradient(to right, #818cf8, #c084fc);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -1px;
+}
+
+.history-list {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.job-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 12px;
+    margin-bottom: 12px;
+}
+
+.job-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateX(4px);
+    border-color: var(--border-color);
+}
+
+.job-item.active {
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid var(--accent-color);
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+}
+
+/* Batch középső lista kártyás elrendezése. A .batch-item-nek korábban nem
+   volt alap kinézete — csak a .downloaded állapotnak — ezért a sorok
+   "sűrűn tapadtak" egymáson, kérésre most egyértelműen elkülönülő, kártyás
+   megjelenést kapnak. A színes bal oldali csík jelöli a státuszt. */
+.batch-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.batch-item {
+    display: flex;
+    align-items: stretch;
+    gap: 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 4px solid rgba(156, 163, 175, 0.6);
+    border-radius: 10px;
+    padding: 14px 18px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.batch-item:hover {
+    background: rgba(255, 255, 255, 0.055);
+    border-color: rgba(255, 255, 255, 0.14);
+    transform: translateY(-1px);
+}
+
+/* Státusz-alapú bal sáv: azonnal látható egy pillantásból, hogy egy
+   feladat fut, várakozik, kész, hibás vagy megszakadt. */
+.batch-item.status-queued {
+    border-left-color: #9ca3af;
+}
+
+.batch-item.status-running {
+    border-left-color: var(--process-dub);
+    background: rgba(99, 102, 241, 0.06);
+}
+
+.batch-item.status-done {
+    border-left-color: #10b981;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Smooth list-render transitions — a render-listSmoothInto helper adja a
+   .list-item-enter / .list-item-leave class-okat. Megfékezi a villódzást:
+   a meglévő csempék fix pozícióban maradnak (in-place update), az újak
+   smooth fade-in-nel jönnek, a törlöttek fade-out-tal mennek.
+   ────────────────────────────────────────────────────────────────────────── */
+.batch-item,
+.job-item {
+    transition: background 0.25s ease, border-color 0.25s ease, opacity 0.3s ease, transform 0.3s ease;
+}
+
+.list-item-enter {
+    opacity: 0;
+    transform: translateY(-6px);
+}
+
+.list-item-enter-active {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.list-item-leave {
+    opacity: 0;
+    transform: translateY(-6px);
+    pointer-events: none;
+}
+
+/* Reduced motion: a felhasználó tudja kikapcsolni az animációt
+   (akkumulátor / vestibular). A meglévő flicker-free in-place update
+   tovább működik, csak a fade-in/out nem fut le. */
+@media (prefers-reduced-motion: reduce) {
+    .batch-item,
+    .job-item,
+    .list-item-enter,
+    .list-item-enter-active,
+    .list-item-leave {
+        transition: none !important;
+        transform: none !important;
+    }
+}
+
+.batch-item.status-error {
+    border-left-color: #ef4444;
+    background: rgba(239, 68, 68, 0.05);
+}
+
+.batch-item.status-canceled,
+.batch-item.status-cancelled {
+    border-left-color: #6b7280;
+    opacity: 0.72;
+}
+
+.batch-item.status-interrupted {
+    border-left-color: #f59e0b;
+}
+
+.batch-item .batch-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.batch-item .batch-info h4 {
+    margin: 0 0 6px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #e5e7eb;
+    word-break: break-word;
+}
+
+.batch-item .batch-meta {
+    font-size: 0.78rem;
+    color: #9ca3af;
+    margin-bottom: 6px;
+}
+
+.batch-item .batch-actions {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.job-item.downloaded,
+.batch-item.downloaded {
+    border-left: 4px solid #10b981 !important;
+    background: rgba(16, 185, 129, 0.08);
+}
+
+/* A korábbi ::after pseudo-element a "Mentve az Exports mappába" alá rakott
+   új sort egy ✅-vel, ami a sor magasságát megnövelte (zavaró méret-ugrás
+   minden letöltés után). A pipát mostantól inline a "Mentve" felirat mellé
+   illesztjük a render-kódban (batch_core.js). A border + bg jelzés marad. */
+
+.job-item.downloaded:hover,
+.batch-item.downloaded:hover {
+    background: rgba(16, 185, 129, 0.15);
+}
+
+.job-info {
+    flex: 1;
+    overflow: hidden;
+}
+
+.job-date {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+.delete-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    padding: 6px;
+    margin-left: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    opacity: 0;
+}
+
+.job-item:hover .delete-btn {
+    opacity: 1;
+}
+
+.delete-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    transform: scale(1.1);
+}
+
+/* Main Content */
+.main-content {
+    flex: 1;
+    padding: 40px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+}
+
+.card {
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 32px;
+    margin-bottom: 32px;
+    box-shadow: var(--shadow-lg);
+    transition: all 0.4s ease;
+}
+
+.card:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.fade-in {
+    animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+h2 {
+    font-size: 1.1rem;
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+
+h3 {
+    font-size: 0.95rem;
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+}
+
+p {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.btn-animate-click:active {
+    transform: scale(0.95);
+}
+
+.spin-anim {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* Upload Area */
+.upload-area {
+    border: 2px dashed var(--border-color);
+    border-radius: 8px;
+    padding: 30px;
+    text-align: center;
+    transition: border-color 0.2s, background 0.2s;
+    margin-bottom: 20px;
+    background: var(--input-bg);
+}
+
+.upload-area:hover,
+.upload-area.dragover {
+    border-color: var(--accent-color);
+    background: rgba(35, 134, 54, 0.05);
+}
+
+.upload-area.small {
+    padding: 15px;
+    flex: 1;
+}
+
+.flex-row {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.file-name {
+    display: block;
+    margin-top: 10px;
+    font-size: 0.85rem;
+    color: var(--accent-color);
+}
+
+/* Form Elements */
+.checkbox-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding-top: 10px;
+}
+
+.custom-checkbox {
+    display: flex;
+    align-items: center;
+    font-size: 0.9rem;
+    cursor: pointer;
+    user-select: none;
+    color: var(--text-secondary);
+}
+
+.custom-checkbox input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
+}
+
+.checkmark {
+    height: 18px;
+    width: 18px;
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    margin-right: 10px;
+    position: relative;
+}
+
+.custom-checkbox:hover input~.checkmark {
+    border-color: var(--text-secondary);
+}
+
+.custom-checkbox input:checked~.checkmark {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+}
+
+.checkmark:after {
+    content: "";
+    position: absolute;
+    display: none;
+    left: 6px;
+    top: 2px;
+    width: 4px;
+    height: 9px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.custom-checkbox input:checked~.checkmark:after {
+    display: block;
+}
+
+.warning {
+    color: #ffd700;
+}
+
+/* Buttons */
+.btn {
+    padding: 12px 24px;
+    border-radius: 12px;
+    border: none;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    filter: grayscale(1);
+}
+
+.btn-primary {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.btn-accent {
+    background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+}
+
+.btn-accent:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+    filter: brightness(1.1);
+}
+
+.btn-vibrant {
+    background: linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+    border: none !important;
+}
+
+.btn-vibrant:hover:not(:disabled) {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 25px rgba(99, 102, 241, 0.5);
+    filter: brightness(1.1);
+}
+
+.btn-secondary {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--text-secondary);
+}
+
+.actions {
+    margin-top: 32px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Progress */
+.status-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.badge {
+    background: rgba(99, 102, 241, 0.2);
+    color: #a5b4fc;
+    padding: 6px 14px;
+    border-radius: 100px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.progress-bar-container {
+    height: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 100px;
+    overflow: hidden;
+    margin-bottom: 15px;
+    border: 1px solid var(--border-color);
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #6366f1, #a855f7);
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.5);
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.status-detail {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    background: rgba(0, 0, 0, 0.2);
+    padding: 8px 12px;
+    border-radius: 8px;
+}
+
+/* Editor Table */
+.editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.editor-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.table-container {
+    max-height: 600px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+th {
+    background: var(--sidebar-bg);
+    padding: 16px;
+    text-align: left;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    border-bottom: 1px solid var(--border-color);
+}
+
+td {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.95rem;
+    vertical-align: top;
+    transition: background 0.2s;
+}
+
+tr:hover td {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+td textarea {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: inherit;
+    line-height: 1.5;
+    resize: vertical;
+    padding: 12px;
+    border-radius: 10px;
+    transition: all 0.3s;
+}
+
+td textarea:focus {
+    border-color: var(--accent-color);
+    outline: none;
+    background: rgba(99, 102, 241, 0.05);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* Downloads */
+.download-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 20px;
+}
+
+.download-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-decoration: none;
+    color: var(--text-primary);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.download-card:hover {
+    background: rgba(99, 102, 241, 0.08);
+    border-color: var(--accent-color);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.download-card .icon {
+    font-size: 2.5rem;
+    margin-bottom: 12px;
+}
+
+.download-card .label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+.download-card-actions {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    margin-top: auto;
+}
+
+.download-card-actions .btn {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+}
+
+.hint {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* ============================================================
+   HUB / LANDING PAGE
+   ============================================================ */
+.hub-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 16px;
+}
+
+.hub-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.hub-header h1 {
+    font-size: 1.6rem;
+    font-weight: 800;
+    background: linear-gradient(to right, #818cf8, #c084fc);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -1px;
+    margin-bottom: 4px;
+}
+
+.hub-header p {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.hub-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 14px;
+    max-width: 1200px;
+    width: 100%;
+}
+
+.tool-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-decoration: none;
+    color: var(--text-primary);
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-lg);
+}
+
+.tool-card:hover {
+    background: rgba(99, 102, 241, 0.08);
+    border-color: var(--accent-color);
+    transform: translateY(-3px);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3), 0 0 18px rgba(99, 102, 241, 0.15);
+}
+
+.tool-card-icon {
+    font-size: 1.7rem;
+    margin-bottom: 8px;
+    line-height: 1;
+}
+
+.tool-card-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    margin-bottom: 2px;
+    color: var(--text-primary);
+}
+
+.tool-card-subtitle {
+    font-size: 0.65rem;
+    color: var(--accent-color);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 6px;
+}
+
+.tool-card-desc {
+    font-size: 0.74rem;
+    color: var(--text-secondary);
+    line-height: 1.35;
+    flex: 1;
+}
+
+.tool-card-arrow {
+    margin-top: 8px;
+    font-size: 0.95rem;
+    color: var(--accent-color);
+    transition: transform 0.2s;
+}
+
+.tool-card:hover .tool-card-arrow {
+    transform: translateX(4px);
+}
+
+.hub-footer {
+    margin-top: 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+    opacity: 0.6;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+/* ============================================================
+   STEP INDICATOR (for tool workflow pages)
+   ============================================================ */
+.step-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 32px;
+}
+
+.step-indicator .step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    transition: color 0.3s;
+}
+
+.step-indicator .step.active {
+    color: var(--text-primary);
+}
+
+.step-indicator .step.done {
+    color: var(--success);
+}
+
+.step-indicator .step-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    transition: all 0.3s;
+}
+
+.step-indicator .step.active .step-num {
+    border-color: var(--accent-color);
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--accent-color);
+}
+
+.step-indicator .step.done .step-num {
+    border-color: var(--success);
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+}
+
+.step-indicator .step-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border-color);
+    min-width: 32px;
+}
+
+/* ============================================================
+   BACK TO HUB BUTTON
+   ============================================================ */
+.back-to-hub {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    margin-bottom: 20px;
+    padding: 4px 0;
+    transition: color 0.2s;
+}
+
+.back-to-hub:hover {
+    color: var(--text-primary);
+}
+
+/* ============================================================
+   PRESET PILLS (for Intro-Outro page)
+   ============================================================ */
+.preset-pills {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.preset-pill {
+    padding: 6px 16px;
+    border-radius: 100px;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.preset-pill:hover {
+    border-color: var(--text-secondary);
+    color: var(--text-primary);
+}
+
+.preset-pill.active {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+.preview-text {
+    cursor: grab;
+    user-select: none;
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), color 0.2s;
+}
+
+.preview-text.dragging {
+    cursor: grabbing !important;
+    transform: translate(-50%, -50%) scale(1.1) !important;
+    z-index: 1000;
+}
+
+/* Language Toggle */
+.lang-toggle {
+    display: flex;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    overflow: hidden;
+    width: fit-content;
+    margin-top: 8px;
+}
+
+.lang-toggle button {
+    padding: 8px 20px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.lang-toggle button.active {
+    background: rgba(99, 102, 241, 0.2);
+    color: var(--text-primary);
+}
+
+.lang-toggle button:hover:not(.active) {
+    background: rgba(255,255,255,0.04);
+}
+
+/* ============================================================
+   DATE FILTER PILLS
+   ============================================================ */
+.date-filter-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.date-pill {
+    font-size: 0.78rem;
+    padding: 3px 12px;
+    border-radius: 100px;
+    border: 1px solid #444;
+    background: #1a1a2e;
+    color: #9ca3af;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.date-pill:hover {
+    border-color: #6b7280;
+    color: #e5e7eb;
+}
+
+.date-pill.active {
+    background: rgba(99, 102, 241, 0.2);
+    border-color: #6366f1;
+    color: #a5b4fc;
+}
+
+/* ============================================================
+   BATCH ITEM: delete button (distinct from sidebar .delete-btn)
+   ============================================================ */
+.delete-btn-batch {
+    font-size: 0.8rem;
+    padding: 4px 8px;
+    opacity: 0.5;
+    transition: opacity 0.2s, color 0.2s;
+    flex-shrink: 0;
+}
+
+.batch-item:hover .delete-btn-batch {
+    opacity: 1;
+}
+
+/* ============================================================
+   RESPONSIVE — tablet/mobile breakpoints
+   ============================================================ */
+
+/* ── 900px: sidebar starts to hurt ── */
+@media (max-width: 900px) {
+    .sidebar {
+        width: 220px;
+        padding: 20px 12px;
+    }
+
+    .main-content {
+        padding: 20px 16px;
+    }
+
+    .card {
+        padding: 20px 16px;
+    }
+}
+
+/* ── 700px: hide sidebar, full-width layout ── */
+@media (max-width: 700px) {
+    body {
+        overflow: auto;
+    }
+
+    .app-container {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        padding: 12px 16px;
+        gap: 8px;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .sidebar .brand {
+        flex: 1;
+    }
+
+    .sidebar .brand h1 {
+        font-size: 1.1rem;
+        margin-bottom: 0;
+    }
+
+    /* Hide server monitor on mobile */
+    #serverMonitor {
+        display: none;
+    }
+
+    /* Hide full nav block, show only essential links */
+    .sidebar nav {
+        display: none;
+    }
+
+    .history-list {
+        display: none;
+    }
+
+    .main-content {
+        padding: 16px 12px;
+        flex: 1;
+    }
+
+    .card {
+        padding: 16px 12px;
+        border-radius: 12px;
+    }
+}
+
+/* ── Batch-specific responsive ── */
+
+/* Batch page header: wrap stats+buttons on smaller screens */
+.batch-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.batch-page-header h2 {
+    margin-bottom: 0;
+    white-space: nowrap;
+}
+
+.batch-header-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* Batch item: stack info + actions on narrow screens */
+@media (max-width: 640px) {
+    .batch-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .batch-item .batch-actions {
+        align-self: flex-end;
+        margin-left: 0;
+        margin-top: 0.25rem;
+    }
+
+    /* Action buttons wrap inside batch item */
+    .batch-item-action-row {
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+}
+
+/* Ensure download button row wraps */
+.batch-item-action-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+/* ============================================================
+   SERVER LOAD MONITOR WIDGET
+   ============================================================ */
+#serverMonitor {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-color);
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+#serverMonitor .monitor-title {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #555;
+    margin-bottom: 8px;
+}
+
+.monitor-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.monitor-label {
+    min-width: 38px;
+    color: #666;
+}
+
+.monitor-bar-bg {
+    flex: 1;
+    height: 6px;
+    background: #222;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.monitor-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+    background: var(--success);
+}
+
+.monitor-bar-fill.warn {
+    background: #f59e0b;
+}
+
+.monitor-bar-fill.danger {
+    background: var(--danger);
+}
+
+.monitor-val {
+    min-width: 34px;
+    text-align: right;
+    color: #aaa;
+    font-size: 0.75rem;
+}
+
+.monitor-queue {
+    margin-top: 4px;
+    font-size: 0.75rem;
+    color: #666;
+}
+
+.monitor-queue span {
+    color: var(--success);
+    font-weight: 600;
+}
+
+/* =========================================================================
+   Egységes UI rendszer — phase 1A
+   Az EDTI stúdió összes feldolgozási folyamatát közös komponensekre építi:
+     * process-banner  — a lap tetején jelzi, melyik folyamatban vagy és melyik
+                         módban (egy fájl vs. batch) — a "véletlen más processt
+                         indítottam" osztályú hibát ez zárja ki.
+     * process-toggle  — single ↔ batch váltó
+     * advanced-settings — <details>-alapú collapsible "Haladó beállítások"
+     * job-queue-row   — a batch oldalak középső listájának egy sora
+     * toast / confirm-modal — egységes visszajelzés minden oldalon
+   Új osztályok, a régiek érintetlenek — oldalról-oldalra migrálható.
+   ========================================================================= */
+
+:root {
+    /* Folyamat-színek. Az egyes folyamatok ugyanabban a formában és
+       elrendezésben élnek, csak a fő akcentus különbözik — így elég vizuális
+       jel ahhoz, hogy a felhasználó tudja, hol van, anélkül, hogy a felület
+       valóban különbözne. */
+    --process-dub: #6366f1;
+    --process-dub-bg: rgba(99, 102, 241, 0.15);
+    --process-subtitle: #06b6d4;
+    --process-subtitle-bg: rgba(6, 182, 212, 0.15);
+    --process-transcribe: #10b981;
+    --process-transcribe-bg: rgba(16, 185, 129, 0.15);
+    --process-intro-outro: #f59e0b;
+    --process-intro-outro-bg: rgba(245, 158, 11, 0.15);
+    --process-ppt: #a855f7;
+    --process-ppt-bg: rgba(168, 85, 247, 0.15);
+    --process-course: #ec4899;
+    --process-course-bg: rgba(236, 72, 153, 0.15);
+    --process-ppt-narrate: #7c3aed;
+    --process-ppt-narrate-bg: rgba(124, 58, 237, 0.15);
+}
+
+/* ---------- process-banner -------------------------------------------------
+   Minden lap tetején ez a csík mondja meg, hol vagy. Kötelező, erős kontraszt
+   — a célja pontosan az, hogy a "kék Feldolgozás indítása" gombot nézve is
+   tudd, melyik folyamatot indítanád el.
+--------------------------------------------------------------------------- */
+.process-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px;
+    border-radius: 12px;
+    border: 1.5px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    margin-bottom: 1.5rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.process-banner .process-icon {
+    font-size: 1.75rem;
+    line-height: 1;
+}
+
+.process-banner .process-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.process-banner .process-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.process-banner .process-subtitle {
+    font-size: 0.8rem;
+    font-weight: 400;
+    opacity: 0.75;
+}
+
+.process-banner[data-process="dub"] {
+    border-color: var(--process-dub);
+    background: var(--process-dub-bg);
+    color: #c7d2fe;
+}
+
+.process-banner[data-process="subtitle"] {
+    border-color: var(--process-subtitle);
+    background: var(--process-subtitle-bg);
+    color: #a5f3fc;
+}
+
+.process-banner[data-process="transcribe"] {
+    border-color: var(--process-transcribe);
+    background: var(--process-transcribe-bg);
+    color: #a7f3d0;
+}
+
+.process-banner[data-process="intro_outro"] {
+    border-color: var(--process-intro-outro);
+    background: var(--process-intro-outro-bg);
+    color: #fde68a;
+}
+
+.process-banner[data-process="ppt_replace"] {
+    border-color: var(--process-ppt);
+    background: var(--process-ppt-bg);
+    color: #e9d5ff;
+}
+
+.process-banner[data-process="course"] {
+    border-color: var(--process-course);
+    background: var(--process-course-bg);
+    color: #fbcfe8;
+}
+
+.process-banner[data-process="ppt_narrate"] {
+    border-color: var(--process-ppt-narrate);
+    background: var(--process-ppt-narrate-bg);
+    color: #ddd6fe;
+}
+
+/* Batch pill — ha data-mode="batch", a banner jobb oldalára kerül egy jól
+   látható "BATCH" jelzés. Single módban nem látszik. */
+.batch-pill {
+    display: inline-block;
+    background: #f59e0b;
+    color: #000;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.single-pill {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.1);
+    color: #e5e7eb;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+/* ---------- process-toggle (egy fájl ↔ batch) ----------------------------- */
+.process-toggle {
+    display: inline-flex;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 24px;
+    padding: 3px;
+    gap: 3px;
+    margin-left: auto;
+}
+
+.process-toggle a {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-decoration: none;
+    color: #9ca3af;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.process-toggle a.active {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.process-toggle a:hover:not(.active) {
+    color: #e5e7eb;
+}
+
+/* ---------- advanced-settings (collapsible) ------------------------------- */
+/* A ritkán piszkált beállításokat (preset, nyelv, loudness, hangminta-jav.)
+   összefogjuk egy nyitható-zárható szekcióba, hogy az alap felület tiszta
+   maradjon, de a haladó vezérlés mindenhol elérhető legyen. */
+.advanced-settings {
+    margin: 1.25rem 0;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.02);
+    overflow: hidden;
+}
+
+.advanced-settings>summary {
+    padding: 12px 16px;
+    cursor: pointer;
+    font-weight: 500;
+    color: #cbd5e1;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    user-select: none;
+    transition: background 0.15s;
+}
+
+.advanced-settings>summary::-webkit-details-marker {
+    display: none;
+}
+
+.advanced-settings>summary::before {
+    content: "▸";
+    font-size: 0.85rem;
+    opacity: 0.7;
+    transition: transform 0.15s;
+}
+
+.advanced-settings[open]>summary::before {
+    transform: rotate(90deg);
+}
+
+.advanced-settings>summary:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.advanced-settings>.advanced-body {
+    padding: 16px 18px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    display: grid;
+    gap: 14px;
+}
+
+.advanced-settings .field-row {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 14px;
+    align-items: center;
+}
+
+.advanced-settings .field-row label {
+    font-size: 0.9rem;
+    color: #cbd5e1;
+    font-weight: 500;
+}
+
+.advanced-settings .field-row select,
+.advanced-settings .field-row input[type="text"],
+.advanced-settings .field-row input[type="number"] {
+    background: #0f0f1e;
+    border: 1px solid #333;
+    color: #e5e7eb;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 600px) {
+    .advanced-settings .field-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---------- job-queue-list (batch közepén a nagy lista) ------------------- */
+/* A felhasználó explicit kérése:
+   "batch módban … csak középen az összes, nem kell adagokra bontani,
+    legyen minden szépen egybe és látszódjon hogy mi hogy áll".
+   Ezért a batch oldalak közepén egyetlen .job-queue-list él, minden elem egy
+   sor, saját progress-bar-ral és állapot-pill-lel. Külön "folyamatban" /
+   "kész" szakaszokra bontás NEM kell. A státusz-pill a sor bal oldalán
+   azonnal mutatja a helyzetet.
+*/
+.job-queue-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.job-queue-empty {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: #6b7280;
+    font-size: 0.95rem;
+    border: 1px dashed rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+}
+
+.job-queue-row {
+    display: grid;
+    grid-template-columns: 110px 1.5fr 2fr auto;
+    gap: 14px;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    padding: 12px 16px;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.job-queue-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.job-queue-row[data-status="running"] {
+    border-color: rgba(99, 102, 241, 0.4);
+}
+
+.job-queue-row[data-status="done"] {
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.job-queue-row[data-status="error"] {
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
+.job-queue-row[data-status="cancelled"],
+.job-queue-row[data-status="canceled"] {
+    border-color: rgba(107, 114, 128, 0.25);
+    opacity: 0.7;
+}
+
+.job-queue-row[data-status="interrupted"] {
+    border-color: rgba(245, 158, 11, 0.35);
+}
+
+.job-queue-row .file-name {
+    font-weight: 500;
+    color: #e5e7eb;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.92rem;
+}
+
+.job-queue-row .sub-meta {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-top: 2px;
+}
+
+.job-queue-row .progress-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.job-queue-row .progress-bar-container {
+    margin: 0;
+    flex: 1;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 4px;
+    overflow: hidden;
+    min-width: 120px;
+}
+
+.job-queue-row .progress-bar-container .progress-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.job-queue-row .stage-text {
+    font-size: 0.8rem;
+    color: #9ca3af;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 90px;
+    max-width: 200px;
+}
+
+.job-queue-row .actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+    margin: 0;
+}
+
+.job-queue-row .actions .btn {
+    padding: 5px 10px;
+    font-size: 0.8rem;
+}
+
+.job-queue-status-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    text-align: center;
+    min-width: 88px;
+}
+
+.job-queue-status-pill[data-status="queued"] {
+    background: rgba(156, 163, 175, 0.2);
+    color: #d1d5db;
+}
+
+.job-queue-status-pill[data-status="running"] {
+    background: rgba(99, 102, 241, 0.25);
+    color: #a5b4fc;
+}
+
+.job-queue-status-pill[data-status="done"] {
+    background: rgba(16, 185, 129, 0.22);
+    color: #6ee7b7;
+}
+
+.job-queue-status-pill[data-status="error"] {
+    background: rgba(239, 68, 68, 0.25);
+    color: #fca5a5;
+}
+
+.job-queue-status-pill[data-status="cancelled"],
+.job-queue-status-pill[data-status="canceled"] {
+    background: rgba(107, 114, 128, 0.22);
+    color: #9ca3af;
+}
+
+.job-queue-status-pill[data-status="interrupted"] {
+    background: rgba(245, 158, 11, 0.25);
+    color: #fcd34d;
+}
+
+@media (max-width: 860px) {
+    .job-queue-row {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .job-queue-row .actions {
+        justify-content: flex-end;
+    }
+}
+
+/* ---------- Toast notification ------------------------------------------- */
+#toastContainer {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.toast {
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    background: #1f2937;
+    color: #fff;
+    border-left: 4px solid var(--process-dub);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+    animation: toastIn 0.2s ease-out;
+    pointer-events: auto;
+    min-width: 260px;
+    max-width: 420px;
+}
+
+.toast[data-kind="success"] {
+    border-left-color: #10b981;
+}
+
+.toast[data-kind="error"] {
+    border-left-color: #ef4444;
+}
+
+.toast[data-kind="warning"] {
+    border-left-color: #f59e0b;
+}
+
+.toast.fade-out {
+    animation: toastOut 0.2s ease-in forwards;
+}
+
+@keyframes toastIn {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes toastOut {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+}
+
+/* ---------- Confirm modal ------------------------------------------------- */
+.confirm-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+}
+
+.confirm-modal.show {
+    display: flex;
+}
+
+.confirm-modal-box {
+    background: #1a1a2e;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1.5rem 1.75rem;
+    max-width: 440px;
+    width: 90%;
+    box-shadow: 0 24px 72px rgba(0, 0, 0, 0.5);
+}
+
+.confirm-modal-box h3 {
+    margin: 0 0 0.75rem;
+    font-size: 1.1rem;
+    color: #fff;
+}
+
+.confirm-modal-box p {
+    color: #9ca3af;
+    margin: 0 0 1.5rem;
+    line-height: 1.5;
+    font-size: 0.92rem;
+}
+
+.confirm-modal-box .actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin: 0;
+}

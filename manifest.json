@@ -1,0 +1,72 @@
+{
+  "name": "EDTI Stúdió",
+  "short_name": "EDTI",
+  "description": "Magyar AI dub-szerver: szinkron, leiratozás, intro/outro, PPT-csere és PPT-narráció.",
+  "start_url": "./",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0e0e1a",
+  "background_color": "#0e0e1a",
+  "lang": "hu",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "share_target": {
+    "action": "/api/share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "media",
+          "accept": [
+            "video/*",
+            "audio/*",
+            "video/mp4",
+            "video/quicktime",
+            "video/x-matroska",
+            "audio/mpeg",
+            "audio/wav",
+            "audio/aac"
+          ]
+        }
+      ]
+    }
+  },
+  "shortcuts": [
+    {
+      "name": "Batch szinkron",
+      "short_name": "Batch",
+      "description": "Tömeges fájlfeltöltés a szinkron pipeline-ra.",
+      "url": "/batch.html",
+      "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Intro–Outro batch",
+      "short_name": "Intro/Outro",
+      "url": "/intro_outro_batch.html",
+      "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "PPT narráció",
+      "short_name": "PPT",
+      "url": "/ppt_narrate_batch.html",
+      "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
+  ]
+}

@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="hu">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0e0e1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="EDTI Studio">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon.svg">
+    <title>EDTI Stúdió — Intro-Outro</title>
+    <link rel="stylesheet" href="style.css?v=3">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Open+Sans:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+
+        .config-row {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 20px;
+        }
+        .config-row label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .custom-checkbox {
+            display: flex; align-items: center; cursor: pointer;
+            font-size: 0.9rem; user-select: none; color: var(--text-secondary);
+        }
+        .custom-checkbox input { position: absolute; opacity: 0; cursor: pointer; height: 0; width: 0; }
+        .checkmark {
+            height: 18px; width: 18px; background-color: var(--input-bg);
+            border: 1px solid var(--border-color); border-radius: 4px;
+            margin-right: 10px; position: relative;
+        }
+        .custom-checkbox input:checked~.checkmark { background-color: var(--accent-color); border-color: var(--accent-color); }
+        .checkmark:after { content: ""; position: absolute; display: none; left: 6px; top: 2px; width: 4px; height: 9px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+        .custom-checkbox input:checked~.checkmark:after { display: block; }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="brand">
+                <a href="index.html" style="text-decoration:none;"><h1>EDTI Stúdió</h1></a>
+                <div id="userDisplay" style="font-size:0.8rem; color:#555; margin-top:4px;"></div>
+            </div>
+            <div style="padding: 0 1rem; margin-bottom: 0.5rem;">
+                <a href="index.html" class="back-to-hub">← Vissza a főoldalra</a>
+            </div>
+            <div style="padding: 0 1rem; margin-bottom: 0.5rem;">
+                <a href="intro_outro.html" class="btn btn-primary" style="width:100%; display:block; text-align:center; box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);">🎬 Intro-Outro feltöltés</a>
+            </div>
+            <div style="padding: 0 1rem; margin-bottom: 0.5rem;">
+                <a href="intro_outro_batch.html" class="btn btn-secondary" style="width:100%; display:block; text-align:center;">Batch mód →</a>
+            </div>
+            <div style="padding: 0 1rem; margin-bottom: 1rem;">
+                <button onclick="logoutUser()" class="btn btn-secondary" style="width:100%; display:block; text-align:center; font-size:0.8rem; opacity:0.7;">🚪 Kijelentkezés</button>
+            </div>
+            <div style="padding: 0 4px; margin-bottom: 0.5rem;">
+                <div class="date-filter-pills" id="historyDatePills">
+                    <button class="date-pill active" id="hpAll"   onclick="setHistoryDateFilter('all')">Összes</button>
+                    <button class="date-pill"        id="hpToday" onclick="setHistoryDateFilter('today')">📅 Ma</button>
+                    <button class="date-pill"        id="hpYest"  onclick="setHistoryDateFilter('yesterday')">🗓 Tegnap</button>
+                </div>
+            </div>
+            <div class="history-list" id="jobHistory">
+                <div style="padding:20px; color:#555; font-size:0.85rem;">Nincs korábbi feladat</div>
+            </div>
+            <div id="serverMonitor">
+                <div class="monitor-title">⚡ Szerver Terhelés</div>
+                <div class="monitor-row">
+                    <span class="monitor-label">CPU</span>
+                    <div class="monitor-bar-bg">
+                        <div class="monitor-bar-fill" id="monCpu" style="width:0%"></div>
+                    </div>
+                    <span class="monitor-val" id="monCpuTxt">–</span>
+                </div>
+                <div class="monitor-row">
+                    <span class="monitor-label">VRAM</span>
+                    <div class="monitor-bar-bg">
+                        <div class="monitor-bar-fill" id="monVram" style="width:0%"></div>
+                    </div>
+                    <span class="monitor-val" id="monVramTxt">–</span>
+                </div>
+                <div class="monitor-row">
+                    <span class="monitor-label">RAM</span>
+                    <div class="monitor-bar-bg">
+                        <div class="monitor-bar-fill" id="monRam" style="width:0%"></div>
+                    </div>
+                    <span class="monitor-val" id="monRamTxt">–</span>
+                </div>
+                <div class="monitor-row" style="margin-top:2px;">
+                    <span class="monitor-label" style="min-width:64px; color:#555;">Törölhető</span>
+                    <span class="monitor-val" id="monStorageTxt" style="text-align:left; flex:1; color:#10b981; font-weight:600;">–</span>
+                </div>
+                <div class="monitor-queue">Sor: <span id="monQueue">–</span> | Fut: <span id="monRunning">–</span></div>
+                <div style="text-align:center; margin-top:8px; font-size:0.7rem; color:#333; letter-spacing:0.5px;" id="_versionBadge">v–</div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <!-- Egységes fejléc-csík — Intro/Outro, narancs színkód. -->
+            <div id="processBanner"></div>
+
+            <!-- Step Indicator -->
+            <div class="step-indicator">
+                <div class="step active" id="step1"><span class="step-num">1</span> Feltöltés</div>
+                <div class="step-line"></div>
+                <div class="step" id="step2"><span class="step-num">2</span> Beállítások</div>
+                <div class="step-line"></div>
+                <div class="step" id="step3"><span class="step-num">3</span> Feldolgozás</div>
+                <div class="step-line"></div>
+                <div class="step" id="step4"><span class="step-num">4</span> Letöltés</div>
+            </div>
+
+            <!-- Step 1: Upload -->
+            <section id="uploadSection" class="card fade-in">
+                <h2>Videó feltöltése <span class="badge" style="background:#f59e0b; color:#fff; font-size:0.6rem; vertical-align:middle; margin-left:8px;">BÉTA</span></h2>
+                <p class="hint" style="margin-bottom:20px;">Töltsd fel a videót — a rendszer automatikusan hozzáfűzi az EDTI intrót és outrót.</p>
+                <div class="upload-area" id="videoDropZone">
+                    <p id="uploadTitle">Húzd ide a videót (MP4, MOV, MKV)</p>
+                    <input type="file" id="videoInput" accept=".mp4,.mov,.mkv,.avi" hidden>
+                    <button class="btn btn-vibrant" onclick="document.getElementById('videoInput').click()">
+                        <i class="fas fa-file-upload"></i> Videó kiválasztása
+                    </button>
+                    <div id="fileListContainer" class="hidden" style="margin-top: 16px; width: 100%; text-align: left; max-height: 200px; overflow-y: auto;">
+                        <ul id="selectedFilesList" style="list-style: none; padding: 0; color: var(--text-secondary); font-size: 0.85rem;"></ul>
+                    </div>
+                </div>
+                <div class="actions">
+                    <button id="nextBtn" class="btn btn-accent" disabled>Tovább a beállításokhoz →</button>
+                </div>
+            </section>
+
+            <!-- Step 2: Configure -->
+            <section id="configSection" class="card hidden">
+                <h2>⚙️ Beállítások</h2>
+                <p class="hint" style="margin-bottom:24px;">Válaszd ki az intro/outro stílusát és egyéb adatait.</p>
+
+                <div class="config-row" id="brandToggleContainer">
+                    <label>Téma / Brand</label>
+                    <div class="preset-pills">
+                        <button class="preset-pill active" data-theme="sajat" onclick="setTheme('sajat')">Alapértelmezett</button>
+                        <button class="preset-pill" data-theme="kmooc" onclick="setTheme('kmooc')">K-mooc</button>
+                        <button class="preset-pill" data-theme="egyetemi" onclick="setTheme('egyetemi')">Egyetemi</button>
+                        <button class="preset-pill" data-theme="custom" onclick="setTheme('custom')">Saját (Egyedi feltöltés)</button>
+                    </div>
+                </div>
+
+                <div class="config-row" id="openingToggleContainer">
+                    <label class="custom-checkbox">
+                        <input type="checkbox" id="hasOpeningCheck" onchange="toggleOpeningFields()">
+                        <span class="checkmark"></span>
+                        Intro "nyitó oldallal" (feliratozható kék rész)
+                    </label>
+                </div>
+
+                <div id="openingTextsContainer" class="hidden" style="margin-bottom: 24px;">
+                    <div style="display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap;">
+                        <!-- Bal oldal: Bemeneti mezők -->
+                        <div style="flex: 1; min-width: 250px;">
+                            <h4 id="inputGroupTitle" style="margin-bottom: 12px; color: var(--text-secondary);">Szövegek</h4>
+                            <div class="input-group" style="margin-bottom: 12px;">
+                                <textarea id="openingSubject" placeholder="Tárgy / Kurzus címe" class="settings-input" style="width: 100%; height: 60px; padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-dark); color: var(--text); resize: vertical;" oninput="updatePreviewText()"></textarea>
+                            </div>
+                            <div id="lessonInputContainer" class="input-group" style="margin-bottom: 12px;">
+                                <textarea id="openingLesson" placeholder="Fejezet / Lecke címe" class="settings-input" style="width: 100%; height: 60px; padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-dark); color: var(--text); resize: vertical;" oninput="updatePreviewText()"></textarea>
+                            </div>
+                            <div class="input-group">
+                                <textarea id="openingTeacher" placeholder="Oktató neve / Előadó" class="settings-input" style="width: 100%; height: 40px; padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-dark); color: var(--text); resize: vertical;" oninput="updatePreviewText()"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Jobb oldal: Vizuális Előkép -->
+                        <div style="flex: 1; min-width: 300px; display: flex; flex-direction: column; align-items: flex-end;">
+                            <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <span style="font-size: 0.85rem; color: var(--text-secondary);">🎥 Vizuális előnézet (Kék nyitószöveg)</span>
+                                <button id="previewLockBtn" onclick="togglePreviewLock()" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; filter: grayscale(100%); transition: all 0.2s;" title="Pozíció zárolásának feloldása">🔒</button>
+                            </div>
+                            <div id="previewCanvas" style="width: 100%; aspect-ratio: 16/9; background: #005A9C; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid var(--border); font-family: 'Open Sans', sans-serif;">
+                                <!-- Vonalzó (középvonalak) — default ON. A pointer-events: none
+                                     megakadályozza, hogy a vonalak elnyeljék a húzó kattintást. -->
+                                <div id="rulerHorizontal" style="position:absolute; left:0; right:0; top:50%; height:1px; background:rgba(255,255,255,0.45); pointer-events:none; z-index:1;"></div>
+                                <div id="rulerVertical" style="position:absolute; top:0; bottom:0; left:50%; width:1px; background:rgba(255,255,255,0.45); pointer-events:none; z-index:1;"></div>
+                                <div id="previewSubject" class="preview-text" data-key="subject" style="position: absolute; left: 50%; top: 41%; transform: translate(-50%, -50%); font-size: 1.5rem; font-weight: bold; color: white; white-space: pre-wrap; text-align: center; user-select: none; pointer-events: none; z-index: 2;">Tárgy címe</div>
+                                <div id="previewLesson" class="preview-text" data-key="lesson" style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 1.2rem; color: white; white-space: pre-wrap; text-align: center; user-select: none; pointer-events: none; z-index: 2;">Fejezet / Lecke címe</div>
+                                <div id="previewTeacher" class="preview-text" data-key="teacher" style="position: absolute; left: 50%; top: 59%; transform: translate(-50%, -50%); font-size: 1rem; color: white; white-space: pre-wrap; text-align: center; user-select: none; pointer-events: none; z-index: 2;">Oktató neve / Egyéb adat</div>
+                            </div>
+                            <!-- Pozíció-toolbar: középre igazítás, vonalzó kapcsoló, mértékegység,
+                                 és pixel/% pontos koordináta-beállítás minden feliratra. -->
+                            <div id="positionToolbar" style="width:100%; margin-top: 8px; padding: 10px 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 6px; font-size: 0.8rem; color: var(--text-secondary);">
+                                <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
+                                    <button type="button" onclick="centerAllTexts()" class="btn btn-secondary" style="font-size:0.75rem; padding:4px 10px;">📐 Mind középre</button>
+                                    <button type="button" onclick="resetPositions()" class="btn btn-secondary" style="font-size:0.75rem; padding:4px 10px;">↺ Alapértelmezett</button>
+                                    <label style="display:flex; align-items:center; gap:6px; margin-left:auto; cursor:pointer; color:var(--text-secondary);" title="Középvonal mutatása vagy elrejtése">
+                                        <input type="checkbox" id="rulerToggle" checked onchange="toggleRuler()" style="cursor:pointer;">
+                                        📏 Vonalzó
+                                    </label>
+                                    <label style="display:flex; align-items:center; gap:6px; color:var(--text-secondary);">
+                                        <span>Egység:</span>
+                                        <select id="posUnit" onchange="changePosUnit()" style="background:#1a1a2e; border:1px solid #444; color:#ccc; border-radius:4px; padding:2px 6px; font-size:0.75rem;" title="Százalék vagy pixel (1920×1080)">
+                                            <option value="pct" selected>%</option>
+                                            <option value="px">px</option>
+                                        </select>
+                                    </label>
+                                </div>
+                                <div style="display:grid; grid-template-columns: 64px 1fr 1fr; gap:6px 8px; align-items:center;">
+                                    <span style="text-align:right;">Tárgy:</span>
+                                    <label style="display:flex; align-items:center; gap:4px;">X <input type="number" id="posSubjectX" min="0" step="any" onchange="onPosInputChange('subject','x',this.value)" style="flex:1; background:#1a1a2e; border:1px solid #444; color:#ccc; border-radius:4px; padding:2px 6px; font-size:0.75rem; text-align:right;"></label>
+                                    <label style="display:flex; align-items:center; gap:4px;">Y <input type="number" id="posSubjectY" min="0" step="any" onchange="onPosInputChange('subject','y',this.value)" style="flex:1; background:#1a1a2e; border:1px solid #444; color:#ccc; border-radius:4px; padding:2px 6px; font-size:0.75rem; text-align:right;"></label>
+                                    <span style="text-align:right;">Fejezet:</span>
+                                    <label style="display:flex; align-items:center; gap:4px;">X <input type="number" id="posLessonX" min="0" step="any" onchange="onPosInputChange('lesson','x',this.value)" style="flex:1; background:#1a1a2e; border:1px solid #444; color:#ccc; border-radius:4px; padding:2px 6px; font-size:0.75rem; text-align:right;"></label>
+                                    <label style="display:flex; align-items:center; gap:4px;">Y <input type="number" id="posLessonY" min="0" step="any" onchange="onPosInputChange('lesson','y',this.value)" style="flex:1; background:#1a1a2e; border:1px solid #444; color:#ccc; border-radius:4px; padding:2px 6px; font-size:0.75rem; text-align:right;"></label>
+                                    <span style="text-align:right;">Oktató:</span>
+                                    <label style="display:flex; align-items:center; gap:4px;">X <input type="number" id="posTeacherX" min="0" step="any" onchange="onPosInputChange('teacher','x',this.value)" style="flex:1; background:#1a1a2e; border:1px solid #444; color:#ccc; border-radius:4px; padding:2px 6px; font-size:0.75rem; text-align:right;"></label>
+                                    <label style="display:flex; align-items:center; gap:4px;">Y <input type="number" id="posTeacherY" min="0" step="any" onchange="onPosInputChange('teacher','y',this.value)" style="flex:1; background:#1a1a2e; border:1px solid #444; color:#ccc; border-radius:4px; padding:2px 6px; font-size:0.75rem; text-align:right;"></label>
+                                </div>
+                            </div>
+                            <small id="previewHint" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 8px; text-align: right;">Kattints a lakatra a szövegek szabad húzásához!</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="customUploadContainer" class="hidden" style="margin-bottom: 24px;">
+                    <div class="config-row">
+                        <label>Egyedi Intro fájl (opcionális)</label>
+                        <div style="display: flex; gap: 12px; align-items: center;">
+                            <input type="file" id="customIntroInput" accept=".mp4,.mov,.mkv" hidden onchange="handleCustomFile('intro')">
+                            <button class="btn btn-secondary" onclick="document.getElementById('customIntroInput').click()">Fájl kiválasztása...</button>
+                            <span id="customIntroName" style="font-size: 0.8rem; color: var(--text-secondary);">Nincs kiválasztva</span>
+                        </div>
+                    </div>
+                    <div class="config-row">
+                        <label>Egyedi Outro fájl (opcionális)</label>
+                        <div style="display: flex; gap: 12px; align-items: center;">
+                            <input type="file" id="customOutroInput" accept=".mp4,.mov,.mkv" hidden onchange="handleCustomFile('outro')">
+                            <button class="btn btn-secondary" onclick="document.getElementById('customOutroInput').click()">Fájl kiválasztása...</button>
+                            <span id="customOutroName" style="font-size: 0.8rem; color: var(--text-secondary);">Nincs kiválasztva</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="config-row">
+                    <label>Nyelv / Language</label>
+                    <div class="lang-toggle">
+                        <button id="langHun" class="active" onclick="setLang('hun')">🇭🇺 Magyar</button>
+                        <button id="langEng" onclick="setLang('eng')">🇬🇧 English</button>
+                    </div>
+                </div>
+
+                <div class="config-row">
+                    <label>Minőség / Preset</label>
+                    <div class="preset-pills">
+                        <button class="preset-pill active" data-preset="youtube" onclick="setPreset('youtube')">YouTube</button>
+                        <button class="preset-pill" data-preset="fast" onclick="setPreset('fast')">Fast</button>
+                        <button class="preset-pill" data-preset="archive" onclick="setPreset('archive')">Archive</button>
+                        <button class="preset-pill" data-preset="mobile" onclick="setPreset('mobile')">Mobile</button>
+                    </div>
+                    <small style="color:var(--text-secondary);font-size:0.8rem;margin-top:4px;">YouTube: legjobb minőség · Fast: gyors · Archive: maximális · Mobile: kisebb fájl</small>
+                </div>
+
+                <div class="config-row">
+                    <label class="custom-checkbox">
+                        <input type="checkbox" id="loudnessCheck">
+                        <span class="checkmark"></span>
+                        Hangszint normalizálás (-16 LUFS)
+                    </label>
+                </div>
+
+                <div class="actions" style="gap:12px;">
+                    <button class="btn btn-secondary" onclick="resetPage()">← Vissza</button>
+                    <button id="startBtn" class="btn btn-accent">Feldolgozás indítása</button>
+                </div>
+            </section>
+
+            <!-- Step 3: Processing -->
+            <section id="statusSection" class="card hidden">
+                <div class="status-header">
+                    <h2 id="jobStatusTitle">Feldolgozás...</h2>
+                    <span id="jobStageBadge" class="badge">Inicializálás</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar" style="width:0%"></div>
+                </div>
+                <p id="statusDetail" class="status-detail">Intro-Outro fűzés folyamatban...</p>
+            </section>
+
+            <!-- Step 4: Download -->
+            <section id="downloadSection" class="card hidden">
+                <h2>✅ Videó kész!</h2>
+                <p class="hint" style="margin-bottom:24px;">A videóhoz sikeresen hozzá lett fűzve az intro és outro.</p>
+                <div class="download-grid">
+                    <div class="download-card">
+                        <span class="icon">🎬</span>
+                        <span class="label">Feldolgozott videó</span>
+                        <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:16px;" id="outputFilename">output.mp4</p>
+                        <div class="download-card-actions">
+                            <button class="btn btn-accent" onclick="downloadOutput()">Letöltés</button>
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top:24px;">
+                    <button class="btn btn-secondary" onclick="resetPage()">← Új videó feldolgozása</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="mock_core.js"></script>
+<script src="mock_routes_core.js"></script>
+<script src="mock_routes_batch.js"></script>
+<script src="mock_routes_ppt.js"></script>
+<script src="mock_routes_flow.js"></script>
+<script src="mock_routes_subtitle.js"></script>
+<script src="mock_routes_misc.js"></script>
+<script src="shared.js?v=11"></script>
+    <script src="dedup.js"></script>
+    <script src="intro_outro.js?v=15"></script>
+    <script>
+        // Egységes fejléc-csík — Intro/Outro, narancs színkód.
+        (function() {
+            if (typeof renderProcessBanner === 'function') {
+                renderProcessBanner({ process: 'intro_outro', mode: 'single' });
+            }
+        })();
+    </script>
+    <script>
+      if (false /* demo: SW off */) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('sw.js').catch(function (err) {
+            console.warn('SW reg failed:', err);
+          });
+        });
+      }
+    </script>
+</body>
+</html>

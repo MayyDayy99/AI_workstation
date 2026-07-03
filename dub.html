@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="hu">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0e0e1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="EDTI Studio">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon.svg">
+    <title>EDTI Stúdió — Szinkron</title>
+    <link rel="stylesheet" href="style.css?v=3">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="mock_core.js"></script>
+<script src="mock_routes_core.js"></script>
+<script src="mock_routes_batch.js"></script>
+<script src="mock_routes_ppt.js"></script>
+<script src="mock_routes_flow.js"></script>
+<script src="mock_routes_subtitle.js"></script>
+<script src="mock_routes_misc.js"></script>
+<script src="shared.js?v=11"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="brand">
+                <a href="index.html" style="text-decoration:none;">
+                    <h1>EDTI Stúdió</h1>
+                </a>
+                <div id="userDisplay" style="font-size:0.8rem; color:#555; margin-top:4px;"></div>
+            </div>
+            <div style="padding: 0 1rem; margin-bottom: 0.5rem;">
+                <a href="index.html" class="back-to-hub">← Vissza a főoldalra</a>
+            </div>
+            <div style="padding: 0 1rem; margin-bottom: 0.5rem;">
+                <a href="batch.html" class="btn btn-secondary" style="width:100%; display:block; text-align:center;">Batch mód →</a>
+            </div>
+            <div style="padding: 0 1rem; margin-bottom: 1rem;">
+                <button onclick="logoutUser()" class="btn btn-secondary" style="width:100%; display:block; text-align:center; font-size:0.8rem; opacity:0.7;">🚪 Kijelentkezés</button>
+            </div>
+            <div style="padding: 0 4px; margin-bottom: 0.5rem;">
+                <div class="date-filter-pills" id="historyDatePills">
+                    <button class="date-pill active" id="hpAll"   onclick="setHistoryDateFilter('all')">Összes</button>
+                    <button class="date-pill"        id="hpToday" onclick="setHistoryDateFilter('today')">📅 Ma</button>
+                    <button class="date-pill"        id="hpYest"  onclick="setHistoryDateFilter('yesterday')">🗓 Tegnap</button>
+                </div>
+            </div>
+            <div class="history-list" id="jobHistory">
+                <div class="empty-history">Nincs korábbi feladat</div>
+            </div>
+                <!-- Monitor logic now in shared.js -->
+            <div id="serverMonitor">
+                <div class="monitor-title">⚡ Szerver Terhelés</div>
+                <div class="monitor-row">
+                    <span class="monitor-label">CPU</span>
+                    <div class="monitor-bar-bg">
+                        <div class="monitor-bar-fill" id="monCpu" style="width:0%"></div>
+                    </div>
+                    <span class="monitor-val" id="monCpuTxt">–</span>
+                </div>
+                <div class="monitor-row">
+                    <span class="monitor-label">VRAM</span>
+                    <div class="monitor-bar-bg">
+                        <div class="monitor-bar-fill" id="monVram" style="width:0%"></div>
+                    </div>
+                    <span class="monitor-val" id="monVramTxt">–</span>
+                </div>
+                <div class="monitor-row">
+                    <span class="monitor-label">RAM</span>
+                    <div class="monitor-bar-bg">
+                        <div class="monitor-bar-fill" id="monRam" style="width:0%"></div>
+                    </div>
+                    <span class="monitor-val" id="monRamTxt">–</span>
+                </div>
+                <div class="monitor-row" style="margin-top:2px;">
+                    <span class="monitor-label" style="min-width:64px; color:#555;">Törölhető</span>
+                    <span class="monitor-val" id="monStorageTxt" style="text-align:left; flex:1; color:#10b981; font-weight:600;">–</span>
+                </div>
+                <div class="monitor-queue">Sor: <span id="monQueue">–</span> | Fut: <span id="monRunning">–</span></div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <!-- Egységes fejléc-csík: mindig látható, tudod melyik folyamatban
+                 vagy (Szinkron) és melyik módban (Egy fájl). A process-toggle
+                 rögtön itt átvisz batch módba, nincs félreértés. -->
+            <div id="processBanner"></div>
+
+            <section id="uploadSection" class="card fade-in">
+                <h2>Videó feltöltése</h2>
+                <div class="upload-area" id="videoDropZone">
+                    <p>Húzd ide a videót (MP4, MOV, MKV)</p>
+                    <input type="file" id="videoInput" accept=".mp4,.mov,.mkv" hidden>
+                    <button class="btn btn-primary" onclick="document.getElementById('videoInput').click()">Videó kiválasztása</button>
+                    <span id="videoFileName" class="file-name"></span>
+                </div>
+
+                <div class="voice-ref-area">
+                    <h3>Hangminta</h3>
+                    <p class="hint">Tölts fel egy 10–30 másodperces tiszta hangmintát, vagy hagyd automatikusan kinyerni a videóból.</p>
+                    <div class="flex-row">
+                        <div class="upload-area small" id="voiceDropZone">
+                            <p>Hangminta (WAV / MP3)</p>
+                            <input type="file" id="voiceInput" accept=".wav,.mp3" hidden>
+                            <button class="btn btn-secondary" onclick="document.getElementById('voiceInput').click()">Feltöltés</button>
+                            <span id="voiceFileName" class="file-name"></span>
+                        </div>
+                        <div class="checkbox-group">
+                            <label class="custom-checkbox">
+                                <input type="checkbox" id="autoExtractVoice">
+                                <span class="checkmark"></span>
+                                Automatikus kinyerés a videóból
+                            </label>
+                            <label class="custom-checkbox" title="Zajcsökkentés, jobb hangklónozáshoz">
+                                <input type="checkbox" id="enhanceRef" checked>
+                                <span class="checkmark"></span>
+                                Hangminta javítása (ajánlott)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Haladó beállítások: nyelvi preset, loudness, stb. A lap
+                     alap felülete tiszta marad, az itteni opciókat a
+                     felhasználó csak akkor bontja ki, amikor eltér az
+                     alapbeállítástól. -->
+                <details class="advanced-settings" id="advancedSettings">
+                    <summary>⚙️ Haladó beállítások</summary>
+                    <div class="advanced-body">
+                        <div class="field-row">
+                            <label for="advLanguage">Cél nyelv</label>
+                            <select id="advLanguage">
+                                <option value="hun">Magyar (alapértelmezett)</option>
+                                <option value="eng">Angol</option>
+                            </select>
+                        </div>
+                        <div class="field-row">
+                            <label for="advPreset">Minőségi előbeállítás</label>
+                            <select id="advPreset">
+                                <option value="youtube">YouTube (ajánlott)</option>
+                                <option value="fast">Gyors</option>
+                                <option value="archive">Archív (legjobb)</option>
+                                <option value="mobile">Mobil</option>
+                            </select>
+                        </div>
+                        <div class="field-row">
+                            <label for="advLoudness">Hangerő normalizálás</label>
+                            <label class="custom-checkbox" style="margin:0;">
+                                <input type="checkbox" id="advLoudness">
+                                <span class="checkmark"></span>
+                                EBU R128 (broadcast szabvány)
+                            </label>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Rejtett: ezen a dedikált lapon mindig dub_full mód megy -->
+                <div style="display:none;">
+                    <input type="radio" name="procMode" value="dub_full" checked>
+                </div>
+
+                <div class="actions">
+                    <button id="startBtn" class="btn btn-accent" disabled>Szinkron indítása</button>
+                </div>
+            </section>
+
+            <section id="statusSection" class="card hidden">
+                <div class="status-header">
+                    <h2 id="jobStatusTitle">Feldolgozás...</h2>
+                    <span id="jobStageBadge" class="badge">Inicializálás</span>
+                </div>
+                <div id="forceContainer" class="hidden" style="margin-bottom: 10px;">
+                    <div style="display:flex; gap:10px;">
+                        <button id="forceStartBtn" class="btn btn-warning" style="background:#ff9800;color:white;">⚡ Azonnali indítás</button>
+                        <button id="cancelJobBtn" class="btn btn-danger" style="background:#ef4444;color:white;">✕ Mégse</button>
+                    </div>
+                    <small style="display:block; color:#888; margin-top:5px">Használd, ha sorban ragadt</small>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar" style="width:0%"></div>
+                </div>
+                <p id="statusDetail" class="status-detail">Feltöltés...</p>
+            </section>
+
+            <section id="editorSection" class="card hidden">
+                <div class="editor-header">
+                    <h2>Szövegszerkesztő</h2>
+                    <div class="editor-actions">
+                        <input type="file" id="vttInput" accept=".vtt" hidden>
+                        <button id="importVttBtn" class="btn btn-secondary" onclick="document.getElementById('vttInput').click()">Import VTT</button>
+                        <button id="retranslateBtn" class="btn btn-secondary">Fordítás újra</button>
+                        <button id="saveSegmentsBtn" class="btn btn-secondary">Mentés</button>
+                        <button id="exportSubtitlesBtn" class="btn btn-accent hidden" style="background:#7c3aed;">📥 Felirat export</button>
+                        <button id="generateDubBtn" class="btn btn-accent">Szinkron generálása</button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="segmentsTable">
+                        <thead>
+                            <tr>
+                                <th width="10%">Idő</th>
+                                <th width="40%">Eredeti (HU)</th>
+                                <th width="50%">Fordítás (EN)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="downloadSection" class="card hidden">
+                <h2>Letöltések</h2>
+                <div id="subtitleDownloads" class="hidden">
+                    <div id="subtitleQualityCard" class="hidden" style="background:#1a1a2e;border:1px solid #333;border-radius:10px;padding:14px 18px;margin-bottom:18px;font-size:0.85rem;color:#aaa;">
+                        <div style="font-weight:600;color:#10b981;margin-bottom:8px;">📊 Minőségi összefoglaló</div>
+                        <div id="subtitleQualityBody"></div>
+                    </div>
+                    <p class="hint">Válassz letöltési formátumot:</p>
+                    <div class="download-grid">
+                        <div class="download-card"><span class="icon">🇭🇺</span><span class="label">Magyar felirat</span><div class="download-card-actions" style="flex-wrap:wrap;gap:4px;"><button class="btn btn-accent" style="font-size:0.8rem;flex:1;" onclick="downloadFile('hu.srt')">SRT</button><button class="btn btn-accent" style="font-size:0.8rem;flex:1;" onclick="downloadFile('hu.vtt')">VTT</button></div></div>
+                        <div class="download-card"><span class="icon">🇬🇧</span><span class="label">Angol felirat</span><div class="download-card-actions" style="flex-wrap:wrap;gap:4px;"><button class="btn btn-accent" style="font-size:0.8rem;flex:1;" onclick="downloadFile('en.srt')">SRT</button><button class="btn btn-accent" style="font-size:0.8rem;flex:1;" onclick="downloadFileByName('en.vtt')">VTT</button></div></div>
+                        <div class="download-card"><span class="icon">🌐</span><span class="label">Kétnyelvű felirat</span><div class="download-card-actions" style="flex-wrap:wrap;gap:4px;"><button class="btn btn-accent" style="font-size:0.8rem;flex:1;" onclick="downloadFile('bilingual.srt')">SRT</button><button class="btn btn-secondary" style="font-size:0.8rem;flex:1;" onclick="downloadBilingualVtt()">VTT</button></div></div>
+                        <div class="download-card"><span class="icon">📄</span><span class="label">Nyers adatok</span><div class="download-card-actions"><button class="btn btn-secondary" style="font-size:0.8rem;" onclick="downloadFile('segments.json')">JSON</button></div></div>
+                    </div>
+                </div>
+                <div id="dubDownloads">
+                    <div style="margin-bottom:20px;">
+                        <button id="saveToDiskBtn" class="btn btn-primary" onclick="saveToLocalDisk()">💾 Mentés lemezre</button>
+                    </div>
+                    <p class="hint">Válassz hangverziót:</p>
+                    <div class="download-grid">
+                        <div class="download-card"><span class="icon">🎥</span><span class="label">Szinkronizált videó (csak hang)</span><div class="download-card-actions"><button class="btn btn-secondary" onclick="previewFile('dubbed.mp4')">Megnéz</button><button class="btn btn-accent" onclick="downloadFile('dubbed.mp4')">Letöltés</button></div></div>
+                        <div class="download-card"><span class="icon">🎬</span><span class="label">Szinkronizált videó (háttérrel)</span><div class="download-card-actions"><button class="btn btn-secondary" onclick="previewFile('dubbed_with_bg.mp4')">Megnéz</button><button class="btn btn-accent" onclick="downloadFile('dubbed_with_bg.mp4')">Letöltés</button></div></div>
+                        <div class="download-card"><span class="icon">🎙️</span><span class="label">Csak hang (WAV)</span><div class="download-card-actions"><button class="btn btn-secondary" onclick="previewFile('voice_only.wav')">Megnéz</button><button class="btn btn-accent" onclick="downloadFile('voice_only.wav')">Letöltés</button></div></div>
+                        <div class="download-card"><span class="icon">🎵</span><span class="label">Hang + háttér (WAV)</span><div class="download-card-actions"><button class="btn btn-secondary" onclick="previewFile('mix.wav')">Megnéz</button><button class="btn btn-accent" onclick="downloadFile('mix.wav')">Letöltés</button></div></div>
+                        <div class="download-card"><span class="icon">🔊</span><span class="label">Eredeti hang (WAV)</span><div class="download-card-actions"><button class="btn btn-secondary" onclick="previewFile('original_audio.wav')">Megnéz</button><button class="btn btn-accent" onclick="downloadFile('original_audio.wav')">Letöltés</button></div></div>
+                        <div class="download-card"><span class="icon">📄</span><span class="label">Feliratok / Adatok</span><div class="download-card-actions" style="flex-wrap:wrap;gap:4px;"><button class="btn btn-secondary" style="font-size:0.8rem;flex:1;" onclick="downloadFile('dubbed.vtt')">VTT</button><button class="btn btn-secondary" style="font-size:0.8rem;flex:1;" onclick="downloadFile('en.srt')">SRT</button><button class="btn btn-accent" style="font-size:0.8rem;flex:1;" onclick="downloadFile('segments.json')">JSON</button></div></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="dedup.js"></script>
+    <script src="upload_queue.js?v=2"></script>
+    <script src="app.js?v=12"></script>
+    <script>
+        // A banner rendert a shared.js adja; itt csak meghívjuk a saját
+        // folyamat-kulcsunkkal. A data-process attribútum színezi be a
+        // banner-t a phase 1A design-tokenek szerint.
+        //
+        // Fontos: NEM kötjük DOMContentLoaded-ra! Ez a script a <body>
+        // legvégén fut, a DOM már teljesen megvan; ha DOMContentLoaded-ra
+        // kötnénk, az event már lefutott és a callback sosem tüzelne.
+        (function() {
+            if (typeof renderProcessBanner === 'function') {
+                renderProcessBanner({ process: 'dub', mode: 'single' });
+            }
+        })();
+    </script>
+    <script>
+      if (false /* demo: SW off */) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('sw.js').catch(function (err) {
+            console.warn('SW reg failed:', err);
+          });
+        });
+      }
+    </script>
+</body>
+</html>

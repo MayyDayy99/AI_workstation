@@ -1,0 +1,16 @@
+[
+ {
+  "id": 0,
+  "start": 0.0,
+  "end": 4.0,
+  "hu": "Üdvözlök mindenkit a mai előadáson.",
+  "en": "Welcome everyone to today's lecture."
+ },
+ {
+  "id": 1,
+  "start": 4.2,
+  "end": 9.0,
+  "hu": "A digitális technika alapjaival foglalkozunk.",
+  "en": "We will cover the basics of digital technology."
+ }
+]

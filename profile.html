@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0e0e1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="EDTI Studio">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon.svg">
+    <title>EDTI Stúdió — Saját profil</title>
+    <link rel="stylesheet" href="style.css?v=4">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="mock_core.js"></script>
+<script src="mock_routes_core.js"></script>
+<script src="mock_routes_batch.js"></script>
+<script src="mock_routes_ppt.js"></script>
+<script src="mock_routes_flow.js"></script>
+<script src="mock_routes_subtitle.js"></script>
+<script src="mock_routes_misc.js"></script>
+<script src="shared.js?v=11"></script>
+    <style>
+        .profile-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            max-width: 640px;
+        }
+        .info-grid { display: grid; grid-template-columns: 140px 1fr; gap: 12px 18px; font-size: 0.92rem; }
+        .info-grid .label { color: #9ca3af; text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.5px; align-self: center; }
+        .info-grid .val { color: #e5e7eb; }
+        .role-pill { display: inline-block; padding: 2px 10px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.5px; }
+        .role-admin { background: #ef4444; color: white; }
+        .role-editor { background: #3b82f6; color: white; }
+        .role-viewer { background: #6b7280; color: white; }
+        .ws-chip { display:inline-block; background:rgba(99,102,241,0.15); color:#a5b4fc; border:1px solid rgba(99,102,241,0.3); border-radius:4px; padding:2px 8px; font-size:0.78rem; margin-right:4px; margin-bottom:2px; }
+        .pw-form label { display: block; font-size: 0.78rem; color: #9ca3af; margin: 14px 0 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .pw-form input { width: 100%; max-width: 360px; padding: 10px 12px; background: #0f172a; border: 1px solid #374151; color: #e5e7eb; border-radius: 6px; font-size: 0.95rem; box-sizing: border-box; }
+        .pw-form .actions { margin-top: 18px; }
+        .form-status { font-size: 0.88rem; min-height: 1.2em; margin-top: 12px; }
+        .err { color: #ef4444; }
+        .ok  { color: #10b981; }
+        .warn { color: #f59e0b; }
+        /* Csempe-sorrend szerkesztő */
+        .tile-order-list { list-style: none; padding: 0; margin: 0; }
+        .tile-order-list li {
+            display: flex; align-items: center; gap: 10px;
+            background: #1a1a2e; border: 1px solid #374151;
+            border-radius: 8px; padding: 10px 12px; margin-bottom: 6px;
+            cursor: grab; transition: background 0.15s, border-color 0.15s, transform 0.12s;
+            user-select: none;
+        }
+        .tile-order-list li:hover { border-color: #6366f1; }
+        .tile-order-list li.dragging { opacity: 0.4; cursor: grabbing; }
+        .tile-order-list li.drag-over { border-color: #10b981; background: rgba(16,185,129,0.08); }
+        .tile-order-list .grip { color: #6b7280; font-size: 1.1rem; cursor: grab; }
+        .tile-order-list .tile-icon { font-size: 1.15rem; }
+        .tile-order-list .tile-label { flex: 1; font-weight: 500; color: #e5e7eb; }
+        .tile-order-list .tile-id { font-size: 0.72rem; color: #6b7280; font-family: monospace; }
+        .tile-order-actions { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <aside class="sidebar">
+        <div class="brand">
+            <a href="index.html" style="text-decoration:none;"><h1>EDTI Stúdió</h1></a>
+            <div id="userDisplay" style="font-size:0.8rem; color:#555; margin-top:4px;"></div>
+        </div>
+        <nav style="margin-top: 2rem; flex: 1;">
+            <a href="index.html" class="btn btn-secondary" style="width:100%; text-align:left; margin-bottom: 0.5rem;">← Főoldal</a>
+            <a href="profile.html" class="btn btn-primary" style="width:100%; text-align:left; margin-bottom: 0.5rem;">👤 Saját profil</a>
+            <div style="padding: 1rem 0.25rem; color: #6b7280; font-size: 0.8rem;">
+                <p style="margin:0 0 6px;">Itt láthatod a saját adataidat és változtathatod meg a jelszavadat.</p>
+            </div>
+        </nav>
+        <div style="padding: 0 1rem; margin-bottom: 1rem;">
+            <button onclick="logoutUser()" class="btn btn-secondary" style="width:100%; display:block; text-align:center; font-size:0.8rem; opacity:0.7;">🚪 Kijelentkezés</button>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <h2 style="margin-top: 0;">👤 Saját profil</h2>
+
+        <div class="profile-card">
+            <h3 style="margin-top:0;">Adatok</h3>
+            <div class="info-grid">
+                <div class="label">Felhasználónév</div>
+                <div class="val" id="pf_username">—</div>
+                <div class="label">Szerepkör</div>
+                <div class="val"><span id="pf_role" class="role-pill">—</span></div>
+                <div class="label">Aktuális workspace</div>
+                <div class="val" id="pf_currentWs">—</div>
+                <div class="label">Workspace-ek</div>
+                <div class="val" id="pf_workspaces">—</div>
+            </div>
+        </div>
+
+        <div class="profile-card">
+            <h3 style="margin-top:0;">🔑 Jelszó-csere</h3>
+            <p style="color:#9ca3af; font-size:0.88rem; margin: 4px 0 16px;">
+                A biztonság érdekében előbb a jelenlegi jelszavadat is meg kell adnod.
+                Az új jelszó legalább 4 karakter legyen.
+            </p>
+            <div class="pw-form">
+                <label for="pf_currentPw">Jelenlegi jelszó</label>
+                <input type="password" id="pf_currentPw" autocomplete="current-password">
+
+                <label for="pf_newPw">Új jelszó</label>
+                <input type="password" id="pf_newPw" autocomplete="new-password">
+
+                <label for="pf_confirmPw">Új jelszó (újra)</label>
+                <input type="password" id="pf_confirmPw" autocomplete="new-password">
+
+                <div class="form-status" id="pf_status"></div>
+
+                <div class="actions">
+                    <button class="btn btn-primary" id="pf_submit" onclick="submitChangePassword()">Mentés</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="profile-card">
+            <h3 style="margin-top:0;">🧩 Főmenü csempék sorrendje</h3>
+            <p style="color:#9ca3af; font-size:0.88rem; margin: 4px 0 16px;">
+                Húzd a csempéket fel/le a kívánt sorrendbe. A változás azonnal mentődik a böngészőbe — más felhasználókra nincs hatása. Ha új funkció érkezik, az automatikusan a lista végére kerül.
+            </p>
+            <ul id="tileOrderList" class="tile-order-list">
+                <li style="color:#6b7280; cursor:default; border-style:dashed;">Betöltés…</li>
+            </ul>
+            <div id="tileOrderStatus" class="form-status"></div>
+            <div class="tile-order-actions">
+                <button class="btn btn-secondary" onclick="resetTileOrder()">↺ Alapértelmezett sorrend</button>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="profile.js?v=2"></script>
+<script>
+  if (false /* demo: SW off */) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function (err) {
+        console.warn('SW reg failed:', err);
+      });
+    });
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+1
+00:00:00,000 --> 00:00:04,000
+Üdvözlök mindenkit a mai előadáson.
+
+2
+00:00:04,200 --> 00:00:09,000
+A digitális technika alapjaival foglalkozunk.
+
+3
+00:00:09,200 --> 00:00:14,000
+Welcome everyone to today's lecture. (EN demo)

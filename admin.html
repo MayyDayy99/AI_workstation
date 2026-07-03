@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0e0e1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="EDTI Studio">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon.svg">
+    <title>EDTI Stúdió — Admin / Felhasználók</title>
+    <link rel="stylesheet" href="style.css?v=3">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="mock_core.js"></script>
+<script src="mock_routes_core.js"></script>
+<script src="mock_routes_batch.js"></script>
+<script src="mock_routes_ppt.js"></script>
+<script src="mock_routes_flow.js"></script>
+<script src="mock_routes_subtitle.js"></script>
+<script src="mock_routes_misc.js"></script>
+<script src="shared.js?v=11"></script>
+    <style>
+        .admin-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+        .user-table { width: 100%; border-collapse: collapse; }
+        .user-table th, .user-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 0.9rem; }
+        .user-table th { color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.7rem; }
+        .user-table tr:hover { background: rgba(255,255,255,0.02); }
+        .user-table .role-pill { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; }
+        .role-admin { background: #ef4444; color: white; }
+        .role-editor { background: #3b82f6; color: white; }
+        .role-viewer { background: #6b7280; color: white; }
+        .user-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        .user-actions button { font-size: 0.75rem; padding: 4px 10px; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: none; align-items: center; justify-content: center; z-index: 10000; }
+        .modal-overlay.show { display: flex; }
+        .modal-box { background: #1a1a2e; border: 1px solid #374151; border-radius: 12px; padding: 24px; min-width: 360px; max-width: 480px; width: 90%; color: #e5e7eb; }
+        .modal-box h3 { margin: 0 0 14px; }
+        .modal-box label { display: block; font-size: 0.78rem; color: #9ca3af; margin-bottom: 4px; margin-top: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .modal-box input, .modal-box select { width: 100%; padding: 8px 10px; background: #0f172a; border: 1px solid #374151; color: #e5e7eb; border-radius: 6px; font-size: 0.95rem; box-sizing: border-box; }
+        .modal-box .actions { margin-top: 18px; display: flex; gap: 8px; justify-content: flex-end; }
+        .modal-status { font-size: 0.85rem; min-height: 1.2em; margin-top: 10px; }
+        .err { color: #ef4444; }
+        .ok  { color: #10b981; }
+        .warn { color: #f59e0b; }
+        #notAdminMsg { background: rgba(239,68,68,0.1); border: 1px solid #ef4444; padding: 24px; border-radius: 8px; color: #fca5a5; text-align: center; margin: 60px auto; max-width: 480px; }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <aside class="sidebar">
+        <div class="brand">
+            <a href="index.html" style="text-decoration:none;"><h1>EDTI Stúdió</h1></a>
+            <div id="userDisplay" style="font-size:0.8rem; color:#555; margin-top:4px;"></div>
+        </div>
+        <nav style="margin-top: 2rem; flex: 1;">
+            <a href="index.html" class="btn btn-secondary" style="width:100%; text-align:left; margin-bottom: 0.5rem;">← Főoldal</a>
+            <a href="admin.html" class="btn btn-primary" style="width:100%; text-align:left; margin-bottom: 0.5rem; box-shadow: 0 0 12px rgba(239,68,68,0.3);">🛡️ Admin</a>
+            <div style="padding: 1rem 0.25rem; color: #6b7280; font-size: 0.8rem;">
+                <p style="margin:0 0 6px;">Admin felület — felhasználók kezelése, jelszó-reset, role-változtatás.</p>
+            </div>
+        </nav>
+        <div style="padding: 0 1rem; margin-bottom: 1rem;">
+            <button onclick="logoutUser()" class="btn btn-secondary" style="width:100%; display:block; text-align:center; font-size:0.8rem; opacity:0.7;">🚪 Kijelentkezés</button>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <!-- Ha nem admin a user, csak figyelmeztetést mutatunk -->
+        <div id="notAdminMsg" style="display:none;">
+            <h2 style="margin: 0 0 8px;">🚫 Nincs jogosultság</h2>
+            <p>Ez az oldal csak az <strong>admin</strong> szerepkörű felhasználóknak érhető el. A te szerepköröd: <strong id="myRoleSpan">—</strong></p>
+            <p><a href="index.html" style="color:#7c3aed;">← Vissza a főoldalra</a></p>
+        </div>
+
+        <!-- Admin oldal tartalom -->
+        <div id="adminContent" style="display:none;">
+            <section class="admin-card fade-in">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                    <h2 style="margin:0;">👥 Felhasználók</h2>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <button class="btn btn-secondary" onclick="loadUsers()" style="font-size:0.85rem;">🔄 Frissítés</button>
+                        <button class="btn btn-accent" onclick="openCreateUserModal()" style="font-size:0.85rem;">+ Új felhasználó</button>
+                    </div>
+                </div>
+                <p style="color:#9ca3af; font-size:0.85rem; margin-top:8px;">A jelszót ezen az oldalon tudod megváltoztatni / új user-t létrehozni / role-t váltani / felhasználót törölni. Minden művelet audit-loggolva van.</p>
+                <div id="usersStatus" style="font-size:0.85rem; color:#9ca3af; min-height:1.2em; margin:12px 0;"></div>
+                <div style="overflow-x:auto;">
+                    <table class="user-table" id="usersTable">
+                        <thead>
+                            <tr>
+                                <th>Név</th>
+                                <th>Szerepkör</th>
+                                <th>Workspace-ek</th>
+                                <th>Létrehozva</th>
+                                <th>Utolsó jelszó-csere</th>
+                                <th>Műveletek</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTbody">
+                            <tr><td colspan="6" style="text-align:center; color:#6b7280;">Betöltés…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="admin-card" style="margin-top: 20px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                    <h2 style="margin:0;">🗑️ Kuka — soft-deleted batch-feladatok</h2>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <button class="btn btn-secondary" onclick="loadTrash()" style="font-size:0.85rem;">🔄 Frissítés</button>
+                    </div>
+                </div>
+                <p style="color:#9ca3af; font-size:0.85rem; margin-top:8px;">
+                    A „Törlés" gomb mostantól soft-delete — a fájl és a DB-row 30 napig itt marad.
+                    Az auto-purge supervisor task fizikailag is törli a régieket
+                    (<code>jobs.trash_purge_days</code>). Visszaállíthatod, vagy azonnal véglegesen törölheted.
+                </p>
+                <div id="trashStatus" style="font-size:0.85rem; color:#9ca3af; min-height:1.2em; margin:12px 0;"></div>
+                <div style="overflow-x:auto;">
+                    <table class="user-table" id="trashTable">
+                        <thead>
+                            <tr>
+                                <th>Eredeti fájlnév</th>
+                                <th>Mód</th>
+                                <th>Tulajdonos</th>
+                                <th>Utolsó státusz</th>
+                                <th>Törölve</th>
+                                <th>Műveletek</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trashTbody">
+                            <tr><td colspan="6" style="text-align:center; color:#6b7280;">Betöltés…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="admin-card" style="margin-top: 20px;">
+                <h2 style="margin:0 0 12px;">💾 Tárhely-ürítés</h2>
+                <p style="color:#9ca3af; font-size:0.85rem;">Funkciónként + a <code>batch_inbox</code> és <code>exports</code> mappa is. Csak <strong>befejezett</strong> job-ok (done / error / cancelled) törlődnek; futó job-okat nem érint. Minden ürítés a kuka-ürítés szabálya szerint visszafordíthatatlan.</p>
+                <div id="storageStats" style="margin:12px 0; font-size:0.9rem; color:#e5e7eb;">Tárhely-infó betöltése…</div>
+                <div style="margin-bottom:12px;">
+                    <label style="font-size:0.85rem; color:#9ca3af;">Csak ennél régebbi (óra):
+                        <input type="number" id="storageMinAge" value="0" min="0" step="1" style="width:80px; background:#0f172a; border:1px solid #374151; color:#e5e7eb; padding:4px 8px; border-radius:4px;">
+                    </label>
+                    <span style="font-size:0.78rem; color:#6b7280; margin-left:8px;">0 = mind</span>
+                    <button class="btn btn-secondary" style="margin-left:12px; font-size:0.85rem;" onclick="loadStorageStats()">🔄 Frissítés</button>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="user-table" id="storageTable">
+                        <thead>
+                            <tr>
+                                <th>Funkció / mappa</th>
+                                <th>Job-ok</th>
+                                <th>Befejezett</th>
+                                <th>Tárhely (törölhető)</th>
+                                <th>Művelet</th>
+                            </tr>
+                        </thead>
+                        <tbody id="storageTbody">
+                            <tr><td colspan="5" style="text-align:center; color:#6b7280;">Betöltés…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="admin-card" style="margin-top: 20px;">
+                <h2 style="margin:0 0 12px;">📜 Audit log (utolsó 50)</h2>
+                <p style="color:#9ca3af; font-size:0.85rem;">Minden user-művelet (létrehozás, törlés, role-csere, jelszó-reset, job-műveletek) itt látszik.</p>
+                <div id="auditStatus" style="font-size:0.85rem; color:#9ca3af; min-height:1.2em; margin:12px 0;"></div>
+                <div style="overflow-x:auto;">
+                    <table class="user-table" id="auditTable">
+                        <thead>
+                            <tr>
+                                <th>Időpont</th>
+                                <th>Felhasználó</th>
+                                <th>Művelet</th>
+                                <th>Cél</th>
+                                <th>IP</th>
+                            </tr>
+                        </thead>
+                        <tbody id="auditTbody">
+                            <tr><td colspan="5" style="text-align:center; color:#6b7280;">Betöltés…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-top:10px;">
+                    <button class="btn btn-secondary" onclick="loadAudit()" style="font-size:0.85rem;">🔄 Audit frissítése</button>
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
+
+<!-- ─────────────── Modals ─────────────── -->
+
+<!-- Create user modal -->
+<div id="createModal" class="modal-overlay">
+    <div class="modal-box">
+        <h3>+ Új felhasználó</h3>
+        <label>Felhasználónév</label>
+        <input id="cm_username" type="text" placeholder="pl. anna" autocomplete="off">
+        <label>Jelszó</label>
+        <input id="cm_password" type="text" placeholder="kezdő jelszó (min 4 karakter)" autocomplete="new-password">
+        <label>Szerepkör</label>
+        <select id="cm_role">
+            <option value="editor" selected>Editor — saját job-okat kezeli</option>
+            <option value="viewer">Viewer — csak nézi a saját job-jait</option>
+            <option value="admin">Admin — mindent kezel</option>
+        </select>
+        <div id="cm_status" class="modal-status"></div>
+        <div class="actions">
+            <button class="btn btn-secondary" onclick="closeCreateUserModal()">Mégse</button>
+            <button class="btn btn-accent" id="cm_submit" onclick="submitCreateUser()">Létrehozás</button>
+        </div>
+    </div>
+</div>
+
+<!-- Password reset modal -->
+<div id="pwModal" class="modal-overlay">
+    <div class="modal-box">
+        <h3>🔑 Jelszó-csere — <span id="pw_target" style="color:#7c3aed;"></span></h3>
+        <p style="color:#9ca3af; font-size:0.85rem; margin:0 0 12px;">Az új jelszót a következő bejelentkezésnél kell használni.</p>
+        <label>Új jelszó</label>
+        <input id="pw_new" type="text" placeholder="új jelszó (min 4 karakter)" autocomplete="new-password">
+        <div id="pw_status" class="modal-status"></div>
+        <div class="actions">
+            <button class="btn btn-secondary" onclick="closePwModal()">Mégse</button>
+            <button class="btn btn-accent" id="pw_submit" onclick="submitPw()">Csere</button>
+        </div>
+    </div>
+</div>
+
+<!-- Role change modal -->
+<div id="roleModal" class="modal-overlay">
+    <div class="modal-box">
+        <h3>🎭 Szerepkör-csere — <span id="rm_target" style="color:#7c3aed;"></span></h3>
+        <label>Új szerepkör</label>
+        <select id="rm_role">
+            <option value="editor">Editor</option>
+            <option value="viewer">Viewer</option>
+            <option value="admin">Admin</option>
+        </select>
+        <div id="rm_status" class="modal-status"></div>
+        <div class="actions">
+            <button class="btn btn-secondary" onclick="closeRoleModal()">Mégse</button>
+            <button class="btn btn-accent" id="rm_submit" onclick="submitRole()">Mentés</button>
+        </div>
+    </div>
+</div>
+
+<script src="admin.js?v=2"></script>
+    <script>
+      if (false /* demo: SW off */) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('sw.js').catch(function (err) {
+            console.warn('SW reg failed:', err);
+          });
+        });
+      }
+    </script>
+</body>
+</html>

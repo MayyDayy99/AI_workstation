@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="hu">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0e0e1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="EDTI Studio">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon.svg">
+    <title>EDTI Stúdió — Intro-Outro Batch</title>
+    <link rel="stylesheet" href="style.css?v=5">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="mock_core.js"></script>
+<script src="mock_routes_core.js"></script>
+<script src="mock_routes_batch.js"></script>
+<script src="mock_routes_ppt.js"></script>
+<script src="mock_routes_flow.js"></script>
+<script src="mock_routes_subtitle.js"></script>
+<script src="mock_routes_misc.js"></script>
+<script src="shared.js?v=11"></script>
+    <script src="upload_queue.js?v=1"></script>
+    <script src="bulk_download.js?v=1"></script>
+    <script src="quick_combo.js?v=1"></script>
+    <style>
+        .batch-grid { display: grid; gap: 1rem; }
+        .batch-item {
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
+            padding: 1rem; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;
+        }
+        .batch-item.status-done { border-left: 3px solid #10b981; }
+        .batch-item.status-error { border-left: 3px solid #ef4444; }
+        .batch-item.status-processing { border-left: 3px solid #3b82f6; }
+        .batch-item.status-queued { border-left: 3px solid #6b7280; }
+        .batch-item.status-uploaded { border-left: 3px solid #f59e0b; }
+        .batch-item.status-canceled { border-left: 3px solid #6b7280; opacity: 0.6; filter: grayscale(0.5); }
+        .batch-info h4 { margin: 0 0 0.25rem 0; font-size: 1rem; }
+        .batch-meta { font-size: 0.85rem; color: #9ca3af; }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="brand">
+                <a href="index.html" style="text-decoration:none;"><h1>EDTI Stúdió</h1></a>
+                <div id="userDisplay" style="font-size:0.8rem; color:#555; margin-top:4px;"></div>
+            </div>
+            <nav style="margin-top: 2rem; flex: 1;">
+                <a href="index.html" class="btn btn-secondary"
+                    style="width:100%; text-align:left; margin-bottom: 0.5rem;">← Főoldal</a>
+                <a href="intro_outro.html" class="btn btn-secondary"
+                    style="width:100%; text-align:left; margin-bottom: 0.5rem;">← Egy fájl módba</a>
+                <div style="padding: 1rem 0.25rem; color: #6b7280; font-size: 0.85rem;">
+                    <p style="margin: 0 0 6px;">📁 Figyelt mappa:</p>
+                    <code style="display:block; background:#000; padding:0.5rem; word-break:break-all; border-radius: 6px; font-size: 0.75rem;"
+                        id="inboxPath">.\batch_inbox</code>
+                    <p style="margin: 10px 0 0; font-size:0.8rem; opacity:0.8;">Az ide ejtett fájlok automatikusan a sorba kerülnek.</p>
+                </div>
+            </nav>
+            <div id="serverMonitor">
+                <div class="monitor-title">⚡ Szerver Terhelés</div>
+                <div class="monitor-row">
+                    <span class="monitor-label">CPU</span>
+                    <div class="monitor-bar-bg">
+                        <div class="monitor-bar-fill" id="monCpu" style="width:0%"></div>
+                    </div>
+                    <span class="monitor-val" id="monCpuTxt">–</span>
+                </div>
+                <div class="monitor-row">
+                    <span class="monitor-label">VRAM</span>
+                    <div class="monitor-bar-bg">
+                        <div class="monitor-bar-fill" id="monVram" style="width:0%"></div>
+                    </div>
+                    <span class="monitor-val" id="monVramTxt">–</span>
+                </div>
+                <div class="monitor-row">
+                    <span class="monitor-label">RAM</span>
+                    <div class="monitor-bar-bg">
+                        <div class="monitor-bar-fill" id="monRam" style="width:0%"></div>
+                    </div>
+                    <span class="monitor-val" id="monRamTxt">–</span>
+                </div>
+                <div class="monitor-row" style="margin-top:2px;">
+                    <span class="monitor-label" style="min-width:64px; color:#555;">Törölhető</span>
+                    <span class="monitor-val" id="monStorageTxt" style="text-align:left; flex:1; color:#10b981; font-weight:600;">–</span>
+                </div>
+                <div class="monitor-queue">Sor: <span id="monQueue">–</span> | Fut: <span id="monRunning">–</span></div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div id="processBanner"></div>
+
+            <section class="card fade-in">
+                <div class="batch-page-header">
+                    <h2>Összes feladat</h2>
+                    <div class="batch-header-actions">
+                        <span id="queueStats" style="color: #9ca3af; font-size:0.85rem; white-space:nowrap;">Várakozó beállításra: 0 · Fut: 0 · Kész: 0</span>
+                        <button id="bulkConfigBtn" class="btn btn-accent" onclick="openBulkConfig()" disabled
+                            style="opacity:0.5; pointer-events:none;"
+                            title="A még be nem állított videók közös beállítása">
+                            ⚙ Beállítás (<span id="bulkConfigCount">0</span>)
+                        </button>
+                        <button class="btn btn-secondary btn-animate-click" onclick="manualRefresh(this)">
+                            <span id="refreshIcon">🔄</span> Frissítés
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filter Row -->
+                <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+                    <button id="myJobsBtn" onclick="toggleMyJobs()"
+                        style="font-size:0.82rem; padding:4px 14px; border-radius:6px; border:1px solid #6b7280; background:#222; color:#9ca3af; cursor:pointer; transition: all 0.2s;"
+                        title="Csak a saját feladataid">👤 Saját munkák</button>
+                    <div id="ownerFilterWrap" style="display:flex; align-items:center; gap:0.4rem;">
+                        <span style="color:#6b7280; font-size:0.82rem;">Felhasználó:</span>
+                        <select id="ownerFilter" onchange="applyOwnerFilter(this.value)"
+                            style="background:#1a1a2e; border:1px solid #444; color:#ccc; border-radius:6px; padding:3px 8px; font-size:0.82rem;">
+                            <option value="">— Mindenki —</option>
+                        </select>
+                    </div>
+                    <div class="date-filter-pills">
+                        <button class="date-pill active" id="datePillAll"   onclick="applyDateFilter('all')">Összes</button>
+                        <button class="date-pill"        id="datePillToday" onclick="applyDateFilter('today')">📅 Ma</button>
+                        <button class="date-pill"        id="datePillYest"  onclick="applyDateFilter('yesterday')">🗓 Tegnap</button>
+                    </div>
+                    <button id="activeOnlyBtn" onclick="toggleActiveOnly()"
+                        style="font-size:0.82rem; padding:4px 14px; border-radius:6px; border:1px solid #6b7280; background:#222; color:#9ca3af; cursor:pointer; transition: all 0.2s;"
+                        title="Csak a beállítandó / sorban álló / futó feladatok — kész és hibás elrejtve">🟡 Folyamatban</button>
+                </div>
+
+                <div class="upload-area" id="dropZone"
+                    style="margin-bottom: 1rem; border-style: dashed; border-width: 2px;">
+                    <div class="icon" style="font-size: 2rem; margin-bottom: 1rem;">📁</div>
+                    <p>Húzd ide a videókat a feltöltéshez</p>
+                    <p style="font-size: 0.8rem; color: #6b7280; margin-top: 0.5rem;">.mp4, .mov, .mkv, .avi · feltöltés után <strong>Beállítás</strong> gombbal nyitod meg a paramétereket</p>
+                    <input type="file" id="fileInput" multiple style="display: none;"
+                        accept=".mp4,.mov,.mkv,.avi">
+                    <button class="btn btn-secondary" onclick="document.getElementById('fileInput').click()"
+                        style="margin-top: 1rem;">Vagy tallózás…</button>
+                </div>
+
+                <!-- Concurrency csúszka — közös localStorage kulccsal (dub_upload_concurrency) -->
+                <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom: 2rem; flex-wrap: wrap; font-size:0.85rem; color:#9ca3af;">
+                    <span title="Egyszerre ennyi fájl indul el; a többi vár.">📶 Egyidejű feltöltések:</span>
+                    <input type="range" id="concurrencyRange" min="1" max="3" step="1" value="2"
+                        style="accent-color:#6366f1; width:120px;">
+                    <span id="concurrencyValue" style="font-weight:600; color:#e0e0e0; min-width:1.5em; text-align:center;">2</span>
+                    <span style="color:#6b7280; font-size:0.78rem;">(1 = mobil, 3 = LAN)</span>
+                </div>
+
+                <div id="downloadBar"
+                    style="display:flex; justify-content:center; align-items:center; gap:1rem; margin-bottom:1.5rem; padding: 1rem; background:rgba(255,255,255,0.02); border-radius:8px; border:1px solid #333; flex-wrap:wrap;">
+                    <span style="color:#9ca3af; font-size:0.9rem; font-weight:600;">A kész feladatok letöltése:</span>
+                    <button class="btn btn-secondary" data-dlbtn="mp4" data-dl-label="⬇ Összes videó" onclick="downloadAllVisible('mp4')">⬇ Összes videó</button>
+                </div>
+
+                <div id="uploadStatus" style="margin-bottom: 1rem; display:none;">
+                    <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px;">Betöltés…</div>
+                </div>
+
+                <div id="batchList" class="batch-grid">
+                    <div class="empty-history" style="text-align:center; padding: 2rem;">Betöltés…</div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        // ============================================================
+        // SERVER MONITOR
+        // ============================================================
+        async function logoutUser() {
+            try { await fetch('api/logout', { method: 'POST' }); } catch(e) {}
+            document.cookie = 'dub_session=; path=/; max-age=0';
+            document.cookie = 'currentUser=; path=/; max-age=0';
+            window.location.href = 'login.html';
+        }
+        window.logoutUser = logoutUser;
+
+        function setBar(id, percent) {
+            const bar = document.getElementById(id);
+            if (!bar) return;
+            bar.style.width = Math.min(percent, 100) + '%';
+            bar.classList.remove('warn', 'danger');
+            if (percent > 85) bar.classList.add('danger');
+            else if (percent > 60) bar.classList.add('warn');
+        }
+
+        async function refreshMonitor() {
+            try {
+                const res = await fetch('api/health/stats');
+                if (!res.ok) return;
+                const d = await res.json();
+                if (d.cpu) { setBar('monCpu', d.cpu.used_percent); document.getElementById('monCpuTxt').textContent = Math.round(d.cpu.used_percent) + '%'; }
+                if (d.gpu && d.gpu.available) { setBar('monVram', d.gpu.vram_percent); document.getElementById('monVramTxt').textContent = d.gpu.vram_used_mb + ' / ' + d.gpu.vram_total_mb + ' MB'; }
+                else { setBar('monVram', 0); document.getElementById('monVramTxt').textContent = 'N/A'; }
+                if (d.ram) { setBar('monRam', d.ram.used_percent); document.getElementById('monRamTxt').textContent = d.ram.used_mb ? d.ram.used_mb + ' / ' + d.ram.total_mb + ' MB' : d.ram.used_percent + '%'; }
+                document.getElementById('monQueue').textContent = d.queue_length;
+                document.getElementById('monRunning').textContent = d.running_jobs;
+            } catch (e) { /* silent */ }
+        }
+        function startMonitor() { refreshMonitor(); setInterval(refreshMonitor, 5000); }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            applyOwnerDisplay();
+            startMonitor();
+            // Concurrency csúszka bekötése — a CONCURRENCY változó a handleFiles
+            // futáskor olvassa a localStorage-t, így itt csak az UI értékét
+            // szinkronizáljuk és kiírjuk vizuálisan.
+            const slider = document.getElementById('concurrencyRange');
+            const display = document.getElementById('concurrencyValue');
+            if (slider && window.UploadQueue) {
+                const initial = window.UploadQueue.loadConcurrency();
+                slider.value = String(initial);
+                if (display) display.textContent = String(initial);
+                slider.addEventListener('input', () => {
+                    const n = parseInt(slider.value, 10);
+                    if (display) display.textContent = String(n);
+                    window.UploadQueue.saveConcurrency(n);
+                });
+            }
+        });
+
+        // ============================================================
+        // BATCH STATE
+        // ============================================================
+        const IO_API = 'api/intro_outro';
+        let myJobsActive = false;
+        let ownerFilterValue = '';
+        let dateFilterValue = 'all';
+        // "Folyamatban" szűrő: ha aktív, csak a uploaded/queued/processing
+        // állapotú feladatok látszanak — done/error/canceled elrejtve.
+        let _activeOnly = false;
+        // A backendtől kapott TELJES (szűretlen) job-lista. A szűrő-gombok
+        // csak rerendert futtatnak ezen — nem hívnak új /jobs fetch-et.
+        // Régebben minden szűrőváltás teljes server roundtrip volt → 1-3 s
+        // várakozás a "Saját munkák" gombnál; mostantól instant.
+        let _allItems = [];
+
+        // Aktív feltöltések (még nincs job_id-jük). A backend item megjelenése
+        // után a virtuális kártya eltűnik (fájlnév-egyezés alapján).
+        const _activeUploads = new Map();
+
+        function _uploadToken() {
+            return 'u_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+        }
+        function _fmtTimestamp(raw) {
+            if (!raw) return '';
+            const d = new Date(String(raw).includes('T') ? raw : raw.replace(' ', 'T') + 'Z');
+            return d.toLocaleString('hu-HU', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function applyDateFilter(value) {
+            dateFilterValue = value;
+            document.querySelectorAll('.date-pill').forEach(p => p.classList.remove('active'));
+            const map = { all: 'datePillAll', today: 'datePillToday', yesterday: 'datePillYest' };
+            if (map[value]) document.getElementById(map[value]).classList.add('active');
+            applyFiltersAndRender();
+        }
+        function _matchesDateFilter(item) {
+            if (dateFilterValue === 'all') return true;
+            const raw = item.created_at || item.updated_at;
+            if (!raw) return true;
+            const itemDay = String(raw).slice(0, 10);
+            const today = new Date().toISOString().slice(0, 10);
+            const yest = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+            if (dateFilterValue === 'today') return itemDay === today;
+            if (dateFilterValue === 'yesterday') return itemDay === yest;
+            return true;
+        }
+        window.applyDateFilter = applyDateFilter;
+
+        function toggleMyJobs() {
+            myJobsActive = !myJobsActive;
+            const btn = document.getElementById('myJobsBtn');
+            const wrap = document.getElementById('ownerFilterWrap');
+            if (myJobsActive) {
+                btn.style.background = '#10b981'; btn.style.color = '#fff'; btn.style.borderColor = '#10b981';
+                wrap.style.opacity = '0.4'; wrap.style.pointerEvents = 'none';
+                ownerFilterValue = ''; document.getElementById('ownerFilter').value = '';
+            } else {
+                btn.style.background = '#222'; btn.style.color = '#9ca3af'; btn.style.borderColor = '#6b7280';
+                wrap.style.opacity = '1'; wrap.style.pointerEvents = 'auto';
+            }
+            applyFiltersAndRender();
+        }
+        window.toggleMyJobs = toggleMyJobs;
+
+        function applyOwnerFilter(value) {
+            ownerFilterValue = value;
+            if (value) {
+                myJobsActive = false;
+                const btn = document.getElementById('myJobsBtn');
+                btn.style.background = '#222'; btn.style.color = '#9ca3af'; btn.style.borderColor = '#6b7280';
+            }
+            applyFiltersAndRender();
+        }
+        window.applyOwnerFilter = applyOwnerFilter;
+
+        function toggleActiveOnly() {
+            _activeOnly = !_activeOnly;
+            const btn = document.getElementById('activeOnlyBtn');
+            if (_activeOnly) {
+                btn.style.background = '#f59e0b'; btn.style.color = '#000'; btn.style.borderColor = '#f59e0b';
+            } else {
+                btn.style.background = '#222'; btn.style.color = '#9ca3af'; btn.style.borderColor = '#6b7280';
+            }
+            applyFiltersAndRender();
+        }
+        window.toggleActiveOnly = toggleActiveOnly;
+
+        async function manualRefresh(btn) {
+            const icon = btn.querySelector('span');
+            if (icon) icon.classList.add('spin-anim');
+            await loadJobs();
+            if (icon) setTimeout(() => icon.classList.remove('spin-anim'), 1000);
+        }
+        window.manualRefresh = manualRefresh;
+
+        // ============================================================
+        // LOAD + RENDER
+        // ============================================================
+        // Szerver-fetch a teljes listához. 5 mp polling hívja, plus manuálisan
+        // a "Frissítés" gomb. A szűrő-gombok NEM hívják — csak az
+        // applyFiltersAndRender() rendert futtat a cache-ből.
+        async function loadJobs() {
+            try {
+                const res = await fetch(`${IO_API}/jobs?limit=500`);
+                if (!res.ok) throw new Error("Jobs fetch failed");
+                _allItems = await res.json();
+                applyFiltersAndRender();
+            } catch (e) {
+                console.error("Jobs load error:", e);
+                const c = document.getElementById('batchList');
+                if (c) c.innerHTML = `<div style="color:#ef4444; text-align:center; padding:2rem;">Hiba a betöltéskor: ${e.message}</div>`;
+            }
+        }
+
+        // Stat + szűrő + render a már lekért _allItems-ből. NEM csinál fetchet.
+        // Ezért a szűrőgombok (Saját / Felhasználó / Dátum / Folyamatban)
+        // azonnaliak — a backend kérése nélkül.
+        function applyFiltersAndRender() {
+            const items = Array.isArray(_allItems) ? _allItems : [];
+
+            // Stats — a TELJES listából (a header stats nem szűrőfüggő).
+            let counts = { uploaded: 0, queued: 0, processing: 0, done: 0, error: 0 };
+            for (const it of items) {
+                const s = (it.stage || '').toLowerCase();
+                if (counts[s] !== undefined) counts[s]++;
+            }
+            const statsEl = document.getElementById('queueStats');
+            if (statsEl) statsEl.innerText =
+                `Beállítandó: ${counts.uploaded} · Fut: ${counts.processing + counts.queued} · Kész: ${counts.done} · Hibás: ${counts.error}`;
+
+            updateOwnersList(items);
+
+            // Filter
+            const me = (typeof getOwner === 'function') ? getOwner() : null;
+            let filtered = items;
+            if (myJobsActive && me) filtered = filtered.filter(i => i.owner === me);
+            else if (ownerFilterValue) filtered = filtered.filter(i => i.owner === ownerFilterValue);
+            filtered = filtered.filter(_matchesDateFilter);
+            if (_activeOnly) {
+                filtered = filtered.filter(i => {
+                    const s = (i.stage || '').toLowerCase();
+                    return s === 'uploaded' || s === 'queued' || s === 'processing';
+                });
+            }
+
+            renderList(filtered);
+        }
+        window.applyFiltersAndRender = applyFiltersAndRender;
+
+        function updateOwnersList(items) {
+            const sel = document.getElementById('ownerFilter');
+            if (!sel) return;
+            const cur = sel.value;
+            const owners = [...new Set(items.map(i => i.owner).filter(Boolean))].sort();
+            sel.innerHTML = '<option value="">— Mindenki —</option>';
+            owners.forEach(o => {
+                const opt = document.createElement('option');
+                opt.value = o; opt.textContent = '👤 ' + o;
+                sel.appendChild(opt);
+            });
+            if (cur) sel.value = cur;
+        }
+
+        // Az 'uploaded' state-ben lévő (a jelenleg szűrt) item-ek ID-je.
+        // A felső "⚙ Beállítás" gomb ezekre a job-okra megy. renderList()
+        // frissíti minden lista-rendereléskor.
+        let _uploadedJobIds = [];
+
+        function _updateBulkConfigButton() {
+            const btn = document.getElementById('bulkConfigBtn');
+            const cnt = document.getElementById('bulkConfigCount');
+            if (!btn || !cnt) return;
+            cnt.textContent = String(_uploadedJobIds.length);
+            if (_uploadedJobIds.length > 0) {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.style.pointerEvents = 'auto';
+            } else {
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+                btn.style.pointerEvents = 'none';
+            }
+        }
+
+        function openBulkConfig() {
+            if (_uploadedJobIds.length === 0) {
+                alert('Nincs beállításra váró videó.');
+                return;
+            }
+            // Egyetlen URL — a config oldal az IDs alapján betölti a metaadatot.
+            // A vesszővel elválasztás miatt encodeURIComponent nem szabványos,
+            // de ASCII UUID-okat használunk és a backend nem érintett, csak a
+            // frontend olvassa.
+            const ids = _uploadedJobIds.join(',');
+            window.location.href = 'intro_outro.html?bulk=' + ids;
+        }
+        window.openBulkConfig = openBulkConfig;
+
+        function renderList(items) {
+            const container = document.getElementById('batchList');
+            if (!container) return;
+            // A felső Beállítás gomb pontosan a jelenlegi szűrt listán látszó,
+            // SAJÁT 'uploaded' state-ű item-ekre vonatkozik — más workspace
+            // feltöltéseit nem indíthatjuk el. A can_modify flag-et a backend
+            // adja minden job-ra.
+            _uploadedJobIds = items
+                .filter(it => (it.stage || '').toLowerCase() === 'uploaded' && it.can_modify !== false)
+                .map(it => it.id);
+            _updateBulkConfigButton();
+
+            // Aktív feltöltések — virtuális sorok a lista tetején, amíg a
+            // backend job megjelenik. ID-alapú illesztés: az uploadOne XHR
+            // válaszában visszakapott job_id-t tároljuk a virtuális
+            // kártyán, és pontosan akkor rejtjük el, amikor ez a job_id
+            // megjelenik a /jobs lista item-ei közt. Determinisztikus,
+            // nem érzékeny fájlnév-encoding eltérésekre vagy időbélyeg-
+            // ablakra. Hibás kártyák (XHR fail) maradnak láthatóak.
+            const backendIds = new Set(items.map(it => it.id));
+            const uploadHtml = [];
+            const uploadTokens = [];
+            for (const [token, u] of _activeUploads) {
+                if (u.state !== 'error' && u.jobId && backendIds.has(u.jobId)) continue;
+                uploadHtml.push(_renderUploadingRow(token, u));
+                uploadTokens.push(token);
+            }
+
+            if (items.length === 0 && uploadHtml.length === 0) {
+                container.innerHTML = `<div class="empty-history" style="text-align:center; padding: 2rem;">${myJobsActive ? 'Nincs saját feladatod.' : 'A sor üres. Tölts fel videókat!'}</div>`;
+                return;
+            }
+
+            const esc = (s) => (s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]));
+            const html = items.map(item => {
+                const stage = (item.stage || '').toLowerCase();
+                const dlState = JSON.parse(localStorage.getItem('downloadedJobsByType') || '{}')[item.id] || {};
+                const fname = item.original_filename || item.id;
+                const baseName = fname.replace(/\.[^.]+$/, '');
+                const owner = item.owner || '';
+                const badgeHtml = owner ? `<span style="font-size:0.7rem; font-weight:400; background:rgba(99,102,241,0.15); color:#a5b4fc; border:1px solid rgba(99,102,241,0.3); border-radius:4px; padding:1px 7px;">👤 ${esc(owner)}</span>` : '';
+                const btnStyle = "font-size:0.7rem; padding:4px 8px; text-decoration:none; margin-right:4px;";
+                // Read-only: ha a job nem a current user workspace-éhez tartozik
+                // (és nem admin a user), a backend can_modify=false-t küld.
+                // Ekkor sem download, sem delete, sem retry/cancel, sem
+                // upload-asset — csak megnézhető. A backend még ezek nélkül
+                // is védi az endpoint-okat 403-mal, ez csak UI-szint.
+                const canModify = item.can_modify !== false;
+                const deleteBtn = canModify
+                    ? `<button class="btn btn-secondary delete-btn-batch" onclick="deleteJob('${item.id}')" title="Feladat és fájlok törlése">🗑️</button>`
+                    : '';
+                const readonlyBadge = canModify
+                    ? ''
+                    : `<span title="Más workspace feladata — csak megtekinthető" style="font-size:0.7rem; font-weight:500; color:#9ca3af; background:rgba(156,163,175,0.12); border:1px solid rgba(156,163,175,0.3); border-radius:4px; padding:2px 8px;">👁 Csak nézés</span>`;
+
+                let detail = '', progressBar = '', actionBtn = '', icon = '';
+                if (stage === 'uploaded') {
+                    // A per-item Beállítás gombot szándékosan KIVETTÜK — a felső
+                    // "⚙ Beállítás (N)" gomb visz a közös config oldalra, ahol
+                    // egyszerre állítod be az összes várakozó videót.
+                    actionBtn = canModify ? deleteBtn : readonlyBadge;
+                    icon = '⚙';
+                    detail = canModify
+                        ? `<div style="color:#f59e0b; font-weight:600; margin-top:0.25rem;">Beállításra vár — használd a felső <strong>⚙ Beállítás</strong> gombot</div>`
+                        : `<div style="color:#9ca3af; margin-top:0.25rem;">Beállításra vár (másik workspace)</div>`;
+                } else if (stage === 'queued' || stage === 'processing') {
+                    if (canModify) {
+                        actionBtn = `<button class="btn btn-secondary" style="font-size:0.7rem; padding:4px 8px; color:#ef4444; border-color:#ef4444;" onclick="cancelJob('${item.id}')">Leállítás</button>`;
+                    } else {
+                        actionBtn = readonlyBadge;
+                    }
+                    icon = '<span class="spin">⏳</span>';
+                    // A backend detail mezője már tartalmazza a stage-et és a %-ot
+                    // (pl. "Feldolgozás: 66%"), ezért NEM fűzünk hozzá újabb
+                    // prefixet vagy zárójeles %-ot — duplikáció lenne. Ha nincs
+                    // detail, fallback-elünk a stage label + % formára.
+                    const stageLabel = stage === 'queued' ? 'Sorban áll' : 'Feldolgozás';
+                    const text = item.detail || `${stageLabel} (${item.progress || 0}%)`;
+                    const etaHtml = (typeof formatEtaHtml === 'function') ? formatEtaHtml(item.created_at, item.progress) : '';
+                    const stuckHtml = (typeof formatStuckHtml === 'function') ? formatStuckHtml(item.updated_at) : '';
+                    detail = `<div style="color:#6366f1; font-weight:600; margin-top:0.25rem;">${text}${etaHtml}${stuckHtml}</div>`;
+                    progressBar = `<div style="height:4px; width:100%; background:#333; margin-top:0.5rem; border-radius:2px;"><div style="height:100%; width:${item.progress || 0}%; background:#6366f1; transition:width 0.5s;"></div></div>`;
+                } else if (stage === 'done') {
+                    icon = '✅';
+                    const savedMark = (Object.keys(dlState).length > 0) ? ' <span class="saved-mark" title="Letöltve">✅</span>' : '';
+                    detail = `<div class="saved-label" style="color:#10b981; font-size:0.8rem; margin-top:0.25rem;">Kész${canModify ? ' — letölthető' : ''}${savedMark}</div>`;
+                    if (canModify) {
+                        const url = `${IO_API}/download/${encodeURIComponent(item.id)}`;
+                        // Quick-combo: a kész brand-elt videóra utólag felirat vagy
+                        // szinkron. A subtitle quick-combo timeline_anchor='branded'
+                        // info-val megy → a flow-engine auto-offsetet alkalmaz a
+                        // cue-időkódokra (a user explicit kérése: "minden sorrendben
+                        // törhetetlen").
+                        const qcSubtitle = (typeof QuickCombo !== 'undefined')
+                            ? QuickCombo.buttonHtml({ jobId: item.id, sourceNodeType: 'intro_outro', comboType: 'subtitle', label: '💬 Felirat' })
+                            : '';
+                        const qcDub = (typeof QuickCombo !== 'undefined')
+                            ? QuickCombo.buttonHtml({ jobId: item.id, sourceNodeType: 'intro_outro', comboType: 'dub', label: '🎙️ Szinkron' })
+                            : '';
+                        actionBtn = `
+                            <div style="display:flex; align-items:center;">
+                                <a href="${url}" class="btn btn-accent ${dlState.video ? 'downloaded' : ''}" style="${btnStyle}" download="${baseName}_intro_outro.mp4" data-job-id="${item.id}" data-dltype="mp4" onclick="markAsDownloaded('${item.id}', 'mp4')">⬇ Videó ${dlState.video ? '✅' : ''}</a>
+                                ${qcSubtitle}
+                                ${qcDub}
+                                ${deleteBtn}
+                            </div>`;
+                    } else {
+                        actionBtn = readonlyBadge;
+                    }
+                } else if (stage === 'error') {
+                    icon = '❌';
+                    detail = `<div style="color:#ef4444; font-weight:600; margin-top:0.25rem;">${item.detail || 'Ismeretlen hiba'}</div>`;
+                    if (canModify) {
+                        actionBtn = `
+                            <div style="display:flex;">
+                                <button class="btn btn-secondary" style="${btnStyle}" onclick="retryJob('${item.id}')">Újra</button>
+                                ${deleteBtn}
+                            </div>`;
+                    } else {
+                        actionBtn = readonlyBadge;
+                    }
+                } else {
+                    icon = '🕒';
+                    detail = `<div style="color:#9ca3af; font-size:0.8rem; margin-top:0.25rem;">${stage || 'ismeretlen állapot'}</div>`;
+                    actionBtn = canModify ? deleteBtn : readonlyBadge;
+                }
+
+                const cssClass = stage === 'queued' ? 'queued' : (stage === 'processing' ? 'processing' : stage);
+                const dlCount = Object.keys(dlState).length;
+                const sig = stage + ':' + (item.progress || 0) + ':' + dlCount + (item.detail ? ':d' : '');
+                return {
+                    key: 'io-' + item.id,
+                    html: `
+                <div class="batch-item status-${cssClass} ${dlCount > 0 ? 'downloaded' : ''}" data-list-key="io-${item.id}" data-render-sig="${sig}">
+                    <div class="batch-info" style="flex:1;">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                            <h4 style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+                                ${esc(fname)}
+                                ${badgeHtml}
+                            </h4>
+                            <div style="margin-left:1rem;">${actionBtn}</div>
+                        </div>
+                        <div class="batch-meta">${item.created_at ? `<span title="Feltöltve">🕐 ${_fmtTimestamp(item.created_at)}</span>` : ''}</div>
+                        ${detail}${progressBar}
+                    </div>
+                    <div class="batch-actions" style="margin-left:1rem; font-size:1.5rem;">${icon}</div>
+                </div>`,
+                };
+            });
+
+            // uploadHtml jelenleg <string>[]-szerű — átkonvertáljuk {key,html}-re.
+            // A token egyedi és per-feltöltés stabil, így a key sosem ütközik
+            // egy backend item key-jével ('io-${item.id}').
+            const uploadKeyed = uploadHtml.map((h, i) => ({ key: 'upload-' + uploadTokens[i], html: h }));
+            // Megpróbáljuk a smooth-render helpert; ha shared.js régi, fallback innerHTML.
+            if (typeof renderListSmoothInto === 'function') {
+                renderListSmoothInto(container, [...uploadKeyed, ...html]);
+            } else {
+                container.innerHTML = uploadHtml.join('') + html.map(h => h.html).join('');
+            }
+        }
+
+        function _renderUploadingRow(token, u) {
+            const esc = (s) => (s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]));
+            const pct = Math.max(0, Math.min(100, u.percent || 0));
+            let cls = 'queued', label = 'Feldolgozásra vár', detail = '';
+            if (u.state === 'uploading') {
+                cls = 'processing'; label = 'Feltöltés';
+                const mb = (u.sentBytes / (1024*1024)).toFixed(1);
+                const totalMb = (u.totalBytes / (1024*1024)).toFixed(1);
+                detail = `<div style="color:#6366f1; font-weight:600; margin-top:0.25rem;">Feltöltés: ${mb} / ${totalMb} MB (${pct}%)</div>
+                          <div style="height:4px; width:100%; background:#333; margin-top:0.5rem; border-radius:2px;">
+                              <div style="height:100%; width:${pct}%; background:#6366f1; transition:width 0.2s;"></div>
+                          </div>`;
+            } else if (u.state === 'queued') {
+                cls = 'queued';
+                detail = `<div style="color:#10b981; font-weight:600; margin-top:0.25rem;">✓ Feltöltve · backend feldolgoz…</div>`;
+            } else if (u.state === 'error') {
+                cls = 'error';
+                detail = `<div style="color:#ef4444; font-weight:600; margin-top:0.25rem;">❌ ${esc(u.error || 'Ismeretlen hiba')}</div>`;
+            }
+            const sig = 'u:' + u.state + ':' + pct + (u.error ? ':E' : '');
+            return `
+            <div class="batch-item status-${cls}" data-upload-token="${token}" data-list-key="upload-${token}" data-render-sig="${sig}">
+                <div class="batch-info" style="flex:1;">
+                    <h4 style="display:flex; align-items:center; gap:0.4rem;">
+                        ${esc(u.name)}
+                        <span style="font-size:0.7rem; font-weight:400; background:rgba(245,158,11,0.15); color:#fcd34d; border:1px solid rgba(245,158,11,0.3); border-radius:4px; padding:1px 7px;">⬆ Feltöltés alatt</span>
+                    </h4>
+                    <div class="batch-meta">Állapot: ${label}</div>
+                    ${detail}
+                </div>
+                <div class="batch-actions" style="margin-left:1rem; font-size:1.5rem;">
+                    ${u.state === 'uploading' ? '<span class="spin">⏳</span>' : ''}${u.state === 'queued' ? '🕒' : ''}${u.state === 'error' ? '❌' : ''}
+                </div>
+            </div>`;
+        }
+
+        // ============================================================
+        // ACTIONS
+        // ============================================================
+        async function cancelJob(jobId) {
+            if (!confirm("Biztosan leállítod ezt a feladatot?")) return;
+            // A DELETE endpoint cancel-elést is végrehajt a queue-ban + törli
+            // a job mappát. Egy lépésben megfelel a "Leállítás"-nak.
+            try {
+                const res = await fetch(`${IO_API}/job/${encodeURIComponent(jobId)}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+            } catch (e) { alert('Leállítás sikertelen: ' + e.message); }
+            await loadJobs();
+        }
+        window.cancelJob = cancelJob;
+
+        async function deleteJob(jobId) {
+            if (!confirm("Biztosan törölni akarod ezt a feladatot?")) return;
+            try {
+                const res = await fetch(`${IO_API}/job/${encodeURIComponent(jobId)}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+            } catch (e) { alert('Törlés sikertelen: ' + e.message); }
+            await loadJobs();
+        }
+        window.deleteJob = deleteJob;
+
+        async function retryJob(jobId) {
+            try {
+                const res = await fetch(`${IO_API}/retry/${encodeURIComponent(jobId)}`, { method: 'POST' });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+            } catch (e) { alert('Újraindítás sikertelen: ' + e.message); }
+            await loadJobs();
+        }
+        window.retryJob = retryJob;
+
+        // markAsDownloaded + downloadAllVisible mostantól a közös bulk_download.js-ből
+        // származnak (felülírják a window.* deklarációval). A korábbi inline-
+        // implementációkat töröltük — a CSP-safe data-attribute-os flow felé
+        // konzisztens minden batch-page.
+
+        // ============================================================
+        // UPLOAD
+        // ============================================================
+        // A drop zone & file input minden fájlt egyenként a single-mode
+        // upload endpointra küld (az hoz létre 'uploaded' state-ű job-ot,
+        // még NEM enqueueli — a felhasználó a Beállítás gombbal nyitja meg).
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e =>
+            dropZone.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); }, false));
+        ['dragenter', 'dragover'].forEach(e =>
+            dropZone.addEventListener(e, () => { dropZone.style.borderColor = '#6366f1'; dropZone.style.background = 'rgba(99,102,241,0.1)'; }, false));
+        ['dragleave', 'drop'].forEach(e =>
+            dropZone.addEventListener(e, () => { dropZone.style.borderColor = ''; dropZone.style.background = ''; }, false));
+        dropZone.addEventListener('drop', e => handleFiles(e.dataTransfer.files), false);
+        fileInput.addEventListener('change', e => handleFiles(e.target.files), false);
+
+        async function handleFiles(files) {
+            const statusDiv = document.getElementById('uploadStatus');
+            statusDiv.style.display = 'block';
+
+            // Worker-pool: legfeljebb CONCURRENCY párhuzamos XHR fut.
+            // A user-szabályozható csúszkáról (localStorage: dub_upload_concurrency)
+            // olvassuk az értéket — alapból 2, mobil-barát; LAN-on 3.
+            const CONCURRENCY = (window.UploadQueue && window.UploadQueue.loadConcurrency)
+                ? window.UploadQueue.loadConcurrency()
+                : 2;
+            const total = files.length;
+            const queue = Array.from(files);
+            const results = [];
+            let started = 0;
+            let active = 0;
+
+            const updateStatus = () => {
+                const done = results.length;
+                statusDiv.innerHTML = `<p>Feltöltés folyamatban… (${done}/${total})</p>`;
+            };
+            updateStatus();
+
+            await new Promise(resolve => {
+                const pump = () => {
+                    while (active < CONCURRENCY && queue.length > 0) {
+                        const f = queue.shift();
+                        active++;
+                        started++;
+                        uploadOne(f)
+                            .then(r => results.push(r))
+                            .catch(e => results.push({ ok: false, error: `${f.name}: ${e.message || e}` }))
+                            .finally(() => {
+                                active--;
+                                updateStatus();
+                                if (queue.length === 0 && active === 0) resolve();
+                                else pump();
+                            });
+                    }
+                };
+                pump();
+            });
+
+            const ok = results.filter(r => r.ok).length;
+            const errs = results.filter(r => !r.ok).map(r => r.error);
+            if (errs.length === 0) {
+                statusDiv.innerHTML = `<p style="color:#10b981">✅ Feltöltés kész (${ok} fájl).</p>`;
+                setTimeout(() => statusDiv.style.display = 'none', 2500);
+            } else {
+                statusDiv.innerHTML = `<p style="color:#f59e0b">⚠️ ${ok}/${total} sikerült. Hibák:</p><ul style="color:#fca5a5; font-size:0.85rem; margin:6px 0 0 1.2rem;">${errs.map(e => `<li>${e}</li>`).join('')}</ul>`;
+            }
+            loadJobs();
+        }
+
+        function uploadOne(file) {
+            const token = _uploadToken();
+            _activeUploads.set(token, { name: file.name, totalBytes: file.size, sentBytes: 0, percent: 0, state: 'uploading' });
+            renderListFromCache();
+
+            return new Promise(resolve => {
+                const xhr = new XMLHttpRequest();
+                const owner = (typeof getOwner === 'function') ? getOwner() : 'default';
+                xhr.open('POST', `${IO_API}/upload?owner=${encodeURIComponent(owner || 'default')}`);
+                xhr.withCredentials = true;
+                xhr.upload.addEventListener('progress', evt => {
+                    if (!evt.lengthComputable) return;
+                    const e = _activeUploads.get(token);
+                    if (!e) return;
+                    e.sentBytes = evt.loaded;
+                    e.percent = Math.min(99, Math.floor((evt.loaded / evt.total) * 100));
+                    renderListFromCache();
+                });
+                xhr.upload.addEventListener('load', () => {
+                    const e = _activeUploads.get(token);
+                    if (e) { e.percent = 100; e.state = 'queued'; renderListFromCache(); }
+                });
+                xhr.addEventListener('load', () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        // Sikeres feltöltés: a backend válaszában {job_id, status}
+                        // jön. Társítjuk a virtuális kártyához, hogy a renderList
+                        // determinisztikusan el tudja rejteni amint a /jobs
+                        // listán megjelenik. 30 s fallback: ha valami miatt a
+                        // backend item nem jelenne meg (DB hiba, lassú indexelés),
+                        // a kártya akkor is takarodjon.
+                        let data = {};
+                        try { data = JSON.parse(xhr.responseText) || {}; } catch (_) {}
+                        const e = _activeUploads.get(token);
+                        if (e) {
+                            e.jobId = data.job_id || null;
+                            e.percent = 100;
+                            e.state = 'queued';
+                            renderListFromCache();
+                        }
+                        setTimeout(() => { _activeUploads.delete(token); renderListFromCache(); }, 30000);
+                        loadJobs();
+                        resolve({ ok: true });
+                    } else {
+                        let detail = `HTTP ${xhr.status}`;
+                        try { const b = JSON.parse(xhr.responseText); if (b && b.detail) detail = b.detail; } catch (_) {}
+                        const e = _activeUploads.get(token);
+                        if (e) { e.state = 'error'; e.error = detail; renderListFromCache(); }
+                        // Hibás kártya hosszabb ideig látható, hogy a
+                        // felhasználó észrevegye a hibát a tömeges
+                        // feltöltés zűrjében is.
+                        setTimeout(() => { _activeUploads.delete(token); renderListFromCache(); }, 30000);
+                        resolve({ ok: false, error: `${file.name}: ${detail}` });
+                    }
+                });
+                xhr.addEventListener('error', () => {
+                    const e = _activeUploads.get(token);
+                    if (e) { e.state = 'error'; e.error = 'hálózati hiba'; renderListFromCache(); }
+                    setTimeout(() => { _activeUploads.delete(token); renderListFromCache(); }, 10000);
+                    resolve({ ok: false, error: `${file.name}: hálózati hiba` });
+                });
+                const fd = new FormData();
+                fd.append('file', file);
+                xhr.send(fd);
+            });
+        }
+
+        // A renderList()-et hívja a cache-elt items-szel — a cache-t a
+        // loadJobs() frissíti. Az _activeUploads változás miatt nem kell
+        // újabb fetch-et tenni.
+        let _lastItems = [];
+        function renderListFromCache() { renderList(_lastItems); }
+
+        // _lastItems frissítése: hook a loadJobs render-jébe.
+        const _origRender = renderList;
+        renderList = function(items) {
+            _lastItems = items;
+            _origRender(items);
+        };
+
+        // Egységes fejléc-csík: Intro / Outro · BATCH.
+        (function() {
+            if (typeof renderProcessBanner === 'function') {
+                renderProcessBanner({ process: 'intro_outro', mode: 'batch' });
+            }
+        })();
+
+        // ─── SSE: real-time job-status push + polling-as-safety-net ────────
+        // Az EventSource-kapcsolat amíg sikeresen áll, a polling kikapcsolódik
+        // (NEM minden 5 sec-ben rajzolunk DOM-ot — az okozta korábban az UI-ugrást
+        // letöltögetésnél). Ha a kapcsolat eldől, a setInterval visszaindul, így
+        // semmilyen kapcsolódási hiba sem hagyja némán a UI-t.
+        let _sse = null;
+        let _pollTimer = null;
+        const _SSE_BATCH_URL = `${IO_API}/jobs/stream`;
+
+        function _mergeJob(item) {
+            const idx = _allItems.findIndex(i => i.id === item.id);
+            if (idx >= 0) {
+                _allItems[idx] = item;
+            } else {
+                _allItems.unshift(item);
+            }
+        }
+        function _removeJob(id) {
+            _allItems = _allItems.filter(i => i.id !== id);
+        }
+        function _startPolling() {
+            if (_pollTimer) return;
+            _pollTimer = setInterval(loadJobs, 5000);
+        }
+        function _stopPolling() {
+            if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+        }
+        function startUpdates() {
+            // Safety net: polling indul rögtön, ha SSE sikeresen elindul, kikapcsoljuk.
+            _startPolling();
+            loadJobs();
+            try {
+                if (_sse) { try { _sse.close(); } catch(_) {} _sse = null; }
+                _sse = new EventSource(_SSE_BATCH_URL);
+                _sse.addEventListener('snapshot', ev => {
+                    _stopPolling();
+                    try {
+                        const data = JSON.parse(ev.data);
+                        _allItems = data.items || [];
+                        applyFiltersAndRender();
+                    } catch (e) { console.warn('SSE snapshot parse:', e); }
+                });
+                _sse.addEventListener('update', ev => {
+                    try {
+                        const data = JSON.parse(ev.data);
+                        if (data && data.item) {
+                            _mergeJob(data.item);
+                            applyFiltersAndRender();
+                        }
+                    } catch (e) { console.warn('SSE update parse:', e); }
+                });
+                _sse.addEventListener('delete', ev => {
+                    try {
+                        const data = JSON.parse(ev.data);
+                        if (data && data.id) {
+                            _removeJob(data.id);
+                            applyFiltersAndRender();
+                        }
+                    } catch (e) { console.warn('SSE delete parse:', e); }
+                });
+                _sse.onerror = () => {
+                    // A browser auto-reconnect-elhet; ha tényleg meghalt, polling visszakapcsol.
+                    if (_sse && _sse.readyState === EventSource.CLOSED) {
+                        _sse = null;
+                        _startPolling();
+                    }
+                };
+            } catch (e) {
+                console.warn('SSE init failed, polling fallback aktív:', e);
+            }
+        }
+
+        // Initial load + SSE (polling-as-safety-net)
+        startUpdates();
+
+        // Megakadályozza, hogy a böngésző megnyissa a behúzott fájlokat
+        // egy új lapként, ha a drop zone-on kívül engedik el.
+        document.addEventListener('dragover', e => e.preventDefault());
+        document.addEventListener('drop', e => e.preventDefault());
+    </script>
+    <script>
+      if (false /* demo: SW off */) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('sw.js').catch(function (err) {
+            console.warn('SW reg failed:', err);
+          });
+        });
+      }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="hu">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0e0e1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="EDTI Stúdió">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <title>EDTI Stúdió — Szinkron (Batch)</title>
+    <link rel="stylesheet" href="style.css?v=5">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="mock_core.js"></script>
+<script src="mock_routes_core.js"></script>
+<script src="mock_routes_batch.js"></script>
+<script src="mock_routes_ppt.js"></script>
+<script src="mock_routes_flow.js"></script>
+<script src="mock_routes_subtitle.js"></script>
+<script src="mock_routes_misc.js"></script>
+<script src="shared.js?v=11"></script>
+    <script src="dedup.js"></script>
+    <script src="upload_queue.js?v=1"></script>
+    <script src="bulk_download.js?v=1"></script>
+    <script src="quick_combo.js?v=1"></script>
+    <script src="batch_core.js?v=7"></script>
+    <script>
+      // Service worker registration — silent on browsers without SW support.
+      if (false /* demo: SW off */) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('sw.js').catch(err => {
+            console.warn('SW registration failed:', err);
+          });
+        });
+      }
+    </script>
+</head>
+
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="brand">
+                <a href="index.html" style="text-decoration:none;"><h1>EDTI Stúdió</h1></a>
+                <div id="userDisplay" style="font-size:0.8rem; color:#555; margin-top:4px;"></div>
+            </div>
+            <!-- Batch módban NINCS feladatlista a bal oldalon — a felhasználó
+                 explicit kérésére a középső lista az egyetlen hely, ahol
+                 látszik a minden-egybe állapot. A sidebar csak navigációt és
+                 a szerver-monitort mutatja. -->
+            <nav style="margin-top: 2rem; flex: 1;">
+                <a href="index.html" class="btn btn-secondary"
+                    style="width:100%; text-align:left; margin-bottom: 0.5rem;">← Főoldal</a>
+                <a href="dub.html" class="btn btn-secondary"
+                    style="width:100%; text-align:left; margin-bottom: 0.5rem;">← Egy fájl módba</a>
+                <div style="padding: 1rem 0.25rem; color: #6b7280; font-size: 0.85rem;">
+                    <p style="margin: 0 0 6px;">📁 Figyelt mappa:</p>
+                    <code style="display:block; background:#000; padding:0.5rem; word-break:break-all; border-radius: 6px; font-size: 0.75rem;"
+                        id="inboxPath">.\batch_inbox</code>
+                    <p style="margin: 10px 0 0; font-size:0.8rem; opacity:0.8;">Az ide ejtett fájlok automatikusan a sorba kerülnek.</p>
+                </div>
+            </nav>
+            <!-- Server Load Monitor -->
+            <div id="serverMonitor">
+                <div class="monitor-title">⚡ Szerver Terhelés</div>
+                <div class="monitor-row">
+                    <span class="monitor-label">CPU</span>
+                    <div class="monitor-bar-bg">
+                        <div class="monitor-bar-fill" id="monCpu" style="width:0%"></div>
+                    </div>
+                    <span class="monitor-val" id="monCpuTxt">–</span>
+                </div>
+                <div class="monitor-row">
+                    <span class="monitor-label">VRAM</span>
+                    <div class="monitor-bar-bg">
+                        <div class="monitor-bar-fill" id="monVram" style="width:0%"></div>
+                    </div>
+                    <span class="monitor-val" id="monVramTxt">–</span>
+                </div>
+                <div class="monitor-row">
+                    <span class="monitor-label">RAM</span>
+                    <div class="monitor-bar-bg">
+                        <div class="monitor-bar-fill" id="monRam" style="width:0%"></div>
+                    </div>
+                    <span class="monitor-val" id="monRamTxt">–</span>
+                </div>
+                <div class="monitor-row" style="margin-top:2px;">
+                    <span class="monitor-label" style="min-width:64px; color:#555;">Törölhető</span>
+                    <span class="monitor-val" id="monStorageTxt" style="text-align:left; flex:1; color:#10b981; font-weight:600;">–</span>
+                </div>
+                <div class="monitor-queue">Sor: <span id="monQueue">–</span> | Fut: <span id="monRunning">–</span></div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <!-- Egységes fejléc-csík a phase 1A banner-rendszerből. Data-mode
+                 batch → "BATCH" pill + narancs akcens. -->
+            <div id="processBanner"></div>
+
+            <section class="card fade-in">
+                <div class="batch-page-header">
+                    <h2>Összes feladat</h2>
+                    <div class="batch-header-actions">
+                        <span id="queueStats" style="color: #9ca3af; font-size:0.85rem; white-space:nowrap;">Sorban: 0 · Fut: 0 · Kész: 0</span>
+                        <button class="btn btn-secondary btn-animate-click" onclick="manualRefresh(this)">
+                            <span id="refreshIcon">🔄</span> Frissítés
+                        </button>
+                        <button class="btn btn-secondary" onclick="showCleanupModal()"
+                            style="color:#f59e0b; border-color:#f59e0b;"
+                            title="Kész, hibás és megszakított feladatok törlése">
+                            🧹 Tárhely felszabadítása
+                        </button>
+                        <button class="btn btn-secondary" onclick="resetStuck()"
+                            style="color:#ef4444; border-color:#ef4444;"
+                            title="Beragadt futó feladatok kényszer-leállítása">
+                            ⚠️ Visszaállítás
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filter Row -->
+                <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+                    <button id="myJobsBtn" onclick="toggleMyJobs()"
+                        style="font-size:0.82rem; padding:4px 14px; border-radius:6px; border:1px solid #6b7280; background:#222; color:#9ca3af; cursor:pointer; transition: all 0.2s;"
+                        title="Csak a saját feladataid">👤 Saját munkák</button>
+                    <div id="ownerFilterWrap" style="display:flex; align-items:center; gap:0.4rem;">
+                        <span style="color:#6b7280; font-size:0.82rem;">Felhasználó:</span>
+                        <select id="ownerFilter" onchange="applyOwnerFilter(this.value)"
+                            style="background:#1a1a2e; border:1px solid #444; color:#ccc; border-radius:6px; padding:3px 8px; font-size:0.82rem;">
+                            <option value="">— Mindenki —</option>
+                        </select>
+                    </div>
+                    <div class="date-filter-pills">
+                        <button class="date-pill active" id="datePillAll"   onclick="applyDateFilter('all')">Összes</button>
+                        <button class="date-pill"        id="datePillToday" onclick="applyDateFilter('today')">📅 Ma</button>
+                        <button class="date-pill"        id="datePillYest"  onclick="applyDateFilter('yesterday')">🗓 Tegnap</button>
+                    </div>
+                </div>
+
+
+                <div class="upload-area" id="dropZone"
+                    style="margin-bottom: 1rem; border-style: dashed; border-width: 2px;">
+                    <div class="icon" style="font-size: 2rem; margin-bottom: 1rem;">📁</div>
+                    <p>Húzd ide a fájlokat a feltöltéshez</p>
+                    <p style="font-size: 0.8rem; color: #6b7280; margin-top: 0.5rem;">.mp4, .mov, .mkv, .avi, .webm</p>
+                    <input type="file" id="fileInput" multiple style="display: none;"
+                        accept=".mp4,.mov,.mkv,.avi,.webm">
+                    <button class="btn btn-secondary" onclick="document.getElementById('fileInput').click()"
+                        style="margin-top: 1rem;">Vagy tallózás…</button>
+                </div>
+
+                <!-- Pre-process checkbox (Flow Engine): a feltöltött videók ELŐSZÖR
+                     kapnak intro/outro keretet, és azon fut a szinkron. Az SRT-időkód
+                     így a brand-elt timeline-on érvényes — nincs utólagos elcsúszás. -->
+                <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom: 1rem; flex-wrap: wrap; font-size:0.85rem; color:#9ca3af; padding: 0.6rem 0.9rem; background: rgba(99,102,241,0.05); border-radius: 8px; border: 1px solid rgba(99,102,241,0.2);">
+                    <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                        <input type="checkbox" id="preIntroOutroCheckbox" style="accent-color:#6366f1;">
+                        <span>🎬 Brand intro/outro is — a szinkron ELŐTT, a felirat-időkód helyes marad</span>
+                    </label>
+                    <select id="preIntroOutroTheme" style="background:#0f172a; border:1px solid #374151; color:#e5e7eb; border-radius:4px; padding:2px 8px; font-size:0.78rem;">
+                        <option value="sajat">Saját</option>
+                        <option value="kmooc">KMOOC</option>
+                        <option value="egyetemi">Egyetemi</option>
+                    </select>
+                </div>
+
+                <!-- Egyidejűleg feltöltött fájlok száma. localStorage-ban perzisztens.
+                     Mobilról szándékosan alacsonyabbra szokás állítani (1), nagy
+                     ASCII-feltöltésnél (LAN-on, vezetékes) 3-ra emelhető. -->
+                <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom: 2rem; flex-wrap: wrap; font-size:0.85rem; color:#9ca3af;">
+                    <span title="Egyszerre ennyi fájl indul el; a többi vár.">📶 Egyidejű feltöltések:</span>
+                    <input type="range" id="concurrencyRange" min="1" max="3" step="1" value="2"
+                        style="accent-color:#6366f1; width:120px;">
+                    <span id="concurrencyValue" style="font-weight:600; color:#e0e0e0; min-width:1.5em; text-align:center;">2</span>
+                    <span style="color:#6b7280; font-size:0.78rem;">(1 = mobil-barát, 3 = vezetékes LAN)</span>
+                </div>
+
+                <!-- Letöltés összes -->
+                <div id="downloadBar"
+                    style="display:flex; justify-content:center; align-items:center; gap:1rem; margin-bottom:1.5rem; padding: 1rem; background:rgba(255,255,255,0.02); border-radius:8px; border:1px solid #333; flex-wrap:wrap;">
+                    <span style="color:#9ca3af; font-size:0.9rem; font-weight:600;">A kész feladatok letöltése:</span>
+                    <button class="btn btn-secondary" data-dlbtn="mp4"  data-dl-label="⬇ Összes videó" onclick="downloadAllVisible('mp4')">⬇ Összes videó</button>
+                    <button class="btn btn-secondary" data-dlbtn="srt"  data-dl-label="📝 Összes SRT"  onclick="downloadAllVisible('srt')">📝 Összes SRT</button>
+                    <button class="btn btn-secondary" data-dlbtn="txt"  data-dl-label="📄 Összes TXT"  onclick="downloadAllVisible('txt')">📄 Összes TXT</button>
+                    <button class="btn btn-secondary" data-dlbtn="json" data-dl-label="{} Összes JSON" onclick="downloadAllVisible('json')">{} Összes JSON</button>
+                </div>
+
+                <!-- Feltöltési folyamat -->
+                <div id="uploadStatus" style="margin-bottom: 1rem; display:none;">
+                    <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px;">
+                        Betöltés…
+                    </div>
+                </div>
+
+                <!-- A KÖZÉPSŐ EGY-EGYBEN lista: minden batch feladat itt él,
+                     sor-sorként, nincs szekciókra bontva. A batch_core.js még
+                     .batch-grid id-re hivatkozik; phase 2-ben átírjuk a
+                     renderJobQueueRow helper-re is. -->
+                <div id="batchList" class="batch-grid">
+                    <div class="empty-history" style="text-align:center; padding: 2rem;">Betöltés…</div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Tárhely-felszabadítás megerősítő modal -->
+    <div id="cleanupModal"
+        style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:9999; justify-content:center; align-items:center;">
+        <div
+            style="background:#1a1a2e; border:1px solid #f59e0b; border-radius:12px; padding:2rem; max-width:420px; width:90%;">
+            <h2 style="color:#f59e0b; margin:0 0 1rem 0;">🧹 Tárhely felszabadítása</h2>
+            <p style="color:#ccc; margin-bottom:1rem;">Ez a művelet a következőket törli:</p>
+            <ul style="color:#9ca3af; font-size:0.9rem; margin:0 0 1.5rem 1.5rem; line-height:1.8;">
+                <li>A <span style="color:#10b981">kész</span>, <span style="color:#ef4444">hibás</span> és
+                    <span style="color:#6b7280">megszakított</span> feladatok mappái</li>
+                <li>Az összes bennük lévő hangfájl, videó és felirat</li>
+                <li>A batch inbox <code>_staging</code>, <code>done</code> és <code>error</code> almappái</li>
+            </ul>
+            <p style="color:#10b981; font-size:0.85rem; margin-bottom:1.5rem;">✅ A jelenleg <strong>futó</strong> és
+                <strong>várakozó</strong> feladatokhoz nem nyúlunk.
+            </p>
+
+            <div
+                style="background:rgba(245, 158, 11, 0.1); border:1px solid rgba(245, 158, 11, 0.3); padding:1rem; margin-bottom:1.5rem; border-radius:8px;">
+                <label for="cleanupConfirmInput"
+                    style="display:block; color:#ccc; font-size:0.85rem; margin-bottom:0.5rem;">A megerősítéshez írd be, hogy
+                    <strong>Letöltöttem mindent</strong>:</label>
+                <input type="text" id="cleanupConfirmInput" autocomplete="off" onkeyup="checkCleanupConfirmation()"
+                    style="width:100%; padding:0.5rem; background:#111; border:1px solid #555; border-radius:4px; color:#fff;"
+                    placeholder="Letöltöttem mindent">
+            </div>
+
+            <div style="display:flex; gap:0.75rem;">
+                <button class="btn btn-secondary" onclick="hideCleanupModal()" style="flex:1;">Mégse</button>
+                <button class="btn btn-accent" onclick="doCleanup()" id="cleanupConfirmBtn" disabled
+                    style="flex:1; background:#f59e0b; color:#000; border-color:#f59e0b; opacity:0.5; pointer-events:none;">
+                    🗑️ Igen, törlöm
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        // USER SESSION & SERVER MONITOR
+        // ============================================================
+        function setCookie(name, value, days) {
+            let expires = "";
+            if (days) {
+                const date = new Date();
+                date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+                expires = "; expires=" + date.toUTCString();
+            }
+            document.cookie = name + "=" + (value || "") + expires + "; path=/; SameSite=Lax";
+        }
+
+        function getCookie(name) {
+            const nameEQ = name + "=";
+            const ca = document.cookie.split(';');
+            for (let i = 0; i < ca.length; i++) {
+                let c = ca[i];
+                while (c.charAt(0) == ' ') c = c.substring(1, c.length);
+                if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
+            }
+            return null;
+        }
+
+        // getOwner is provided by shared.js (reads dubOwner = active workspace key)
+
+        // applyOwnerDisplay is provided by shared.js
+
+        async function logoutUser() {
+            try { await fetch('api/logout', { method: 'POST' }); } catch(e) {}
+            document.cookie = 'dub_session=; path=/; max-age=0';
+            document.cookie = 'currentUser=; path=/; max-age=0';
+            window.location.href = 'login.html';
+        }
+        window.logoutUser = logoutUser;
+
+        function setBar(id, percent) {
+            const bar = document.getElementById(id);
+            if (!bar) return;
+            bar.style.width = Math.min(percent, 100) + '%';
+            bar.classList.remove('warn', 'danger');
+            if (percent > 85) bar.classList.add('danger');
+            else if (percent > 60) bar.classList.add('warn');
+        }
+
+        async function refreshMonitor() {
+            try {
+                const res = await fetch(`api/health/stats`);
+                if (!res.ok) return;
+                const d = await res.json();
+
+                // CPU
+                if (d.cpu) {
+                    setBar('monCpu', d.cpu.used_percent);
+                    document.getElementById('monCpuTxt').textContent = Math.round(d.cpu.used_percent) + '%';
+                }
+
+                // VRAM
+                if (d.gpu && d.gpu.available) {
+                    setBar('monVram', d.gpu.vram_percent);
+                    document.getElementById('monVramTxt').textContent = d.gpu.vram_used_mb + ' / ' + d.gpu.vram_total_mb + ' MB';
+                } else {
+                    setBar('monVram', 0);
+                    document.getElementById('monVramTxt').textContent = 'N/A';
+                }
+
+                // RAM
+                if (d.ram) {
+                    setBar('monRam', d.ram.used_percent);
+                    const ramTxt = d.ram.used_mb ? d.ram.used_mb + ' / ' + d.ram.total_mb + ' MB' : d.ram.used_percent + '%';
+                    document.getElementById('monRamTxt').textContent = ramTxt;
+                }
+
+                document.getElementById('monQueue').textContent = d.queue_length;
+                document.getElementById('monRunning').textContent = d.running_jobs;
+            } catch (e) { /* silent */ }
+        }
+
+        function startMonitor() {
+            refreshMonitor();
+            setInterval(refreshMonitor, 5000);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            applyOwnerDisplay();
+            startMonitor();
+        });
+
+        // ============================================================
+        // BATCH LOGIC
+        // ============================================================
+
+        // Filter state (myJobsActive / ownerFilterValue / dateFilterValue) is
+        // already declared in batch_core.js. Re-declaring it here with `let`
+        // threw "Identifier 'myJobsActive' has already been declared"
+        // (SyntaxError) at parse time, which killed the ENTIRE inline script —
+        // initBatchPage() never ran and the whole batch page was dead (BATCH-1).
+        // The duplicate helper functions below are harmless (function redeclare),
+        // but the `let` lines MUST NOT be reintroduced.
+
+        function _isoDateStr(date) {
+            return date.toISOString().slice(0, 10); // YYYY-MM-DD
+        }
+
+        function applyDateFilter(value) {
+            dateFilterValue = value;
+            document.querySelectorAll('.date-pill').forEach(p => p.classList.remove('active'));
+            const map = { all: 'datePillAll', today: 'datePillToday', yesterday: 'datePillYest' };
+            const el = document.getElementById(map[value]);
+            if (el) el.classList.add('active');
+            loadBatchStatus();
+        }
+
+        function _matchesDateFilter(item) {
+            if (dateFilterValue === 'all') return true;
+            const raw = item.created_at || item.updated_at;
+            if (!raw) return true; // no timestamp → always show
+            // SQLite CURRENT_TIMESTAMP → "YYYY-MM-DD HH:MM:SS" (UTC)
+            const itemDay = raw.slice(0, 10);
+            const today = _isoDateStr(new Date());
+            const yest = _isoDateStr(new Date(Date.now() - 86400000));
+            if (dateFilterValue === 'today') return itemDay === today;
+            if (dateFilterValue === 'yesterday') return itemDay === yest;
+            return true;
+        }
+
+        function _fmtTimestamp(raw) {
+            if (!raw) return '';
+            // raw: "YYYY-MM-DD HH:MM:SS" (UTC from SQLite)
+            const d = new Date(raw.replace(' ', 'T') + 'Z');
+            return d.toLocaleString('hu-HU', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function toggleMyJobs() {
+            myJobsActive = !myJobsActive;
+            const btn = document.getElementById('myJobsBtn');
+            const wrap = document.getElementById('ownerFilterWrap');
+            if (myJobsActive) {
+                btn.style.background = '#10b981';
+                btn.style.color = '#fff';
+                btn.style.borderColor = '#10b981';
+                wrap.style.opacity = '0.4';
+                wrap.style.pointerEvents = 'none';
+                // Clear other filter
+                ownerFilterValue = '';
+                document.getElementById('ownerFilter').value = '';
+            } else {
+                btn.style.background = '#222';
+                btn.style.color = '#9ca3af';
+                btn.style.borderColor = '#6b7280';
+                wrap.style.opacity = '1';
+                wrap.style.pointerEvents = 'auto';
+            }
+            loadBatchStatus();
+        }
+
+        function applyOwnerFilter(value) {
+            ownerFilterValue = value;
+            if (value) {
+                myJobsActive = false;
+                const btn = document.getElementById('myJobsBtn');
+                btn.style.background = '#222';
+                btn.style.color = '#9ca3af';
+                btn.style.borderColor = '#6b7280';
+            }
+            loadBatchStatus();
+        }
+
+        // Egységes process-banner: Szinkron / BATCH. A data-process="dub"
+        // adja a színkódot, a data-mode="batch" a "BATCH" pillt.
+        //
+        // Ez a script a <body> legvégén fut — a DOM már megvan, ezért
+        // közvetlenül hívjuk, NEM DOMContentLoaded-en. Az addEventListener
+        // verzió sosem tüzelt itt, mert az esemény már lefutott.
+        (function() {
+            if (typeof renderProcessBanner === 'function') {
+                renderProcessBanner({ process: 'dub', mode: 'batch' });
+            }
+        })();
+
+        initBatchPage('dub_full');
+    </script>
+</body>
+
+</html>

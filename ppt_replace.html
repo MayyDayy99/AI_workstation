@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="hu">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0e0e1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="EDTI Studio">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon.svg">
+    <title>EDTI Stúdió — PPT Háttércsere</title>
+    <link rel="stylesheet" href="style.css?v=3">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        #serverMonitor { padding: 12px 16px; border-top: 1px solid #222; font-size: 0.78rem; color: #888; }
+        #serverMonitor .monitor-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #555; margin-bottom: 8px; }
+        .monitor-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .monitor-label { min-width: 38px; color: #666; }
+        .monitor-bar-bg { flex: 1; height: 6px; background: #222; border-radius: 3px; overflow: hidden; }
+        .monitor-bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; background: #10b981; }
+        .monitor-bar-fill.warn { background: #f59e0b; }
+        .monitor-bar-fill.danger { background: #ef4444; }
+        .monitor-val { min-width: 34px; text-align: right; color: #aaa; font-size: 0.75rem; }
+        .monitor-queue { margin-top: 4px; font-size: 0.75rem; color: #666; }
+        .monitor-queue span { color: #10b981; font-weight: 600; }
+
+        /* Dual upload grid */
+        .upload-dual { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        @media (max-width: 700px) { .upload-dual { grid-template-columns: 1fr; } }
+
+        .upload-zone-label {
+            font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 6px;
+        }
+        .upload-status {
+            font-size: 0.82rem; min-height: 20px; margin-top: 6px;
+            color: var(--text-secondary);
+        }
+        .upload-status.ok { color: #10b981; }
+        .upload-status.err { color: #ef4444; }
+
+        /* Config rows */
+        .config-row {
+            display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px;
+        }
+        .config-row label {
+            font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .custom-checkbox {
+            display: flex; align-items: center; cursor: pointer;
+            font-size: 0.9rem; user-select: none; color: var(--text-secondary);
+        }
+        .custom-checkbox input { position: absolute; opacity: 0; cursor: pointer; height: 0; width: 0; }
+        .checkmark {
+            height: 18px; width: 18px; background-color: var(--input-bg);
+            border: 1px solid var(--border-color); border-radius: 4px;
+            margin-right: 10px; position: relative;
+        }
+        .custom-checkbox input:checked~.checkmark { background-color: var(--accent-color); border-color: var(--accent-color); }
+        .checkmark:after { content: ""; position: absolute; display: none; left: 6px; top: 2px; width: 4px; height: 9px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+        .custom-checkbox input:checked~.checkmark:after { display: block; }
+
+        .qual-toggle { display: flex; gap: 8px; }
+        .qual-toggle button {
+            flex: 1; padding: 8px 12px; border: 1px solid var(--border-color);
+            background: var(--input-bg); color: var(--text-secondary);
+            border-radius: 8px; cursor: pointer; font-size: 0.85rem; transition: all 0.2s;
+        }
+        .qual-toggle button.active {
+            background: var(--accent-color); border-color: var(--accent-color);
+            color: white; font-weight: 600;
+        }
+
+        /* Mode toggle */
+        .mode-toggle { margin-bottom: 20px; }
+        .mode-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+        .mode-pill {
+            padding: 7px 16px; border: 1px solid var(--border-color);
+            background: var(--input-bg); color: var(--text-secondary);
+            border-radius: 20px; cursor: pointer; font-size: 0.82rem; transition: all 0.2s;
+        }
+        .mode-pill.active {
+            background: var(--accent-color); border-color: var(--accent-color);
+            color: white; font-weight: 600;
+        }
+        .mode-hint { font-size: 0.82rem; color: var(--text-secondary); margin: 0; }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="brand">
+                <a href="index.html" style="text-decoration:none;"><h1>EDTI Stúdió</h1></a>
+                <div id="userDisplay" style="font-size:0.8rem; color:#555; margin-top:4px;"></div>
+            </div>
+            <div style="padding: 0 1rem; margin-bottom: 0.5rem;">
+                <a href="index.html" class="back-to-hub">← Vissza a főoldalra</a>
+            </div>
+            <div style="padding: 0 1rem; margin-bottom: 1rem;">
+                <button onclick="logoutUser()" class="btn btn-secondary" style="width:100%; display:block; text-align:center; font-size:0.8rem; opacity:0.7;">🚪 Kijelentkezés</button>
+            </div>
+            <div style="padding: 0 4px; margin-bottom: 0.5rem;">
+                <div class="date-filter-pills" id="historyDatePills">
+                    <button class="date-pill active" id="hpAll"   onclick="setHistoryDateFilter('all')">Összes</button>
+                    <button class="date-pill"        id="hpToday" onclick="setHistoryDateFilter('today')">📅 Ma</button>
+                    <button class="date-pill"        id="hpYest"  onclick="setHistoryDateFilter('yesterday')">🗓 Tegnap</button>
+                </div>
+            </div>
+            <div class="history-list" id="jobHistory">
+                <div style="padding:20px; color:#555; font-size:0.85rem;">Nincs korábbi feladat</div>
+            </div>
+            <div id="serverMonitor">
+                <div class="monitor-title">⚡ Szerver Terhelés</div>
+                <div class="monitor-row">
+                    <span class="monitor-label">CPU</span>
+                    <div class="monitor-bar-bg">
+                        <div class="monitor-bar-fill" id="monCpu" style="width:0%"></div>
+                    </div>
+                    <span class="monitor-val" id="monCpuTxt">–</span>
+                </div>
+                <div class="monitor-row">
+                    <span class="monitor-label">VRAM</span>
+                    <div class="monitor-bar-bg">
+                        <div class="monitor-bar-fill" id="monVram" style="width:0%"></div>
+                    </div>
+                    <span class="monitor-val" id="monVramTxt">–</span>
+                </div>
+                <div class="monitor-row">
+                    <span class="monitor-label">RAM</span>
+                    <div class="monitor-bar-bg">
+                        <div class="monitor-bar-fill" id="monRam" style="width:0%"></div>
+                    </div>
+                    <span class="monitor-val" id="monRamTxt">–</span>
+                </div>
+                <div class="monitor-row" style="margin-top:2px;">
+                    <span class="monitor-label" style="min-width:64px; color:#555;">Törölhető</span>
+                    <span class="monitor-val" id="monStorageTxt" style="text-align:left; flex:1; color:#10b981; font-weight:600;">–</span>
+                </div>
+                <div class="monitor-queue">Sor: <span id="monQueue">–</span> | Fut: <span id="monRunning">–</span></div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <!-- Egységes fejléc-csík — PPT csere, lila színkód. -->
+            <div id="processBanner"></div>
+
+            <!-- Step Indicator -->
+            <div class="step-indicator">
+                <div class="step active" id="step1"><span class="step-num">1</span> Feltöltés</div>
+                <div class="step-line"></div>
+                <div class="step" id="step2"><span class="step-num">2</span> Beállítások</div>
+                <div class="step-line"></div>
+                <div class="step" id="step3"><span class="step-num">3</span> Feldolgozás</div>
+                <div class="step-line"></div>
+                <div class="step" id="step4"><span class="step-num">4</span> Letöltés</div>
+            </div>
+
+            <!-- Step 1: Upload -->
+            <section id="uploadSection" class="card fade-in">
+                <h2>Fájlok feltöltése</h2>
+
+                <!-- Mód-választó: a PPT-cserének három tipikus forgatókönyve van.
+                     Ez a folyamatra jellemző specialitás, a phase 1 egyesítés
+                     során is megmarad — a felhasználó itt választ, nem másik
+                     process-ben. -->
+                <div class="mode-toggle">
+                    <div class="mode-pills">
+                        <button class="mode-pill active" id="modeNormal" onclick="setMode('normal')">Van kész angol PPTX</button>
+                        <button class="mode-pill" id="modeTranslate" onclick="setMode('translate')">Magyar PPTX fordítása</button>
+                        <button class="mode-pill" id="modeReconstruct" onclick="setMode('reconstruct')">Rekonstruálás a videóból</button>
+                    </div>
+                    <p class="mode-hint" id="modeHint">Van kész angol PPTX-ed, amit be kell illeszteni.</p>
+                </div>
+
+                <div class="upload-dual" id="uploadDualGrid">
+                    <!-- Video drop zone -->
+                    <div>
+                        <div class="upload-zone-label">🎬 Videó (MP4, MOV, MKV)</div>
+                        <div class="upload-area" id="videoDropZone">
+                            <p>Húzd ide a videót</p>
+                            <input type="file" id="videoInput" accept=".mp4,.mov,.mkv,.avi" hidden>
+                            <button class="btn btn-primary" onclick="document.getElementById('videoInput').click()">Kiválasztás</button>
+                        </div>
+                        <div class="upload-status" id="videoStatus">Nincs kiválasztva</div>
+                    </div>
+
+                    <!-- PPTX drop zone (hidden in Mode B) -->
+                    <div id="pptxZoneWrapper">
+                        <div class="upload-zone-label" id="pptxZoneLabel">📊 Új Prezentáció (.pptx)</div>
+                        <div class="upload-area" id="pptxDropZone">
+                            <p>Húzd ide a PPTX fájlt</p>
+                            <input type="file" id="pptxInput" accept=".pptx" hidden>
+                            <button class="btn btn-primary" onclick="document.getElementById('pptxInput').click()">Kiválasztás</button>
+                        </div>
+                        <div class="upload-status" id="pptxStatus">Nincs kiválasztva</div>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button id="uploadBtn" class="btn btn-accent" disabled onclick="uploadBoth()">Feltöltés és tovább →</button>
+                </div>
+            </section>
+
+            <!-- Step 2: Configure -->
+            <section id="configSection" class="card hidden">
+                <h2>⚙️ Beállítások</h2>
+                <p class="hint" style="margin-bottom:24px;">Szegmentálás minősége és kimeneti opciók.</p>
+
+                <div class="config-row">
+                    <label>Szegmentálás minősége</label>
+                    <div class="qual-toggle">
+                        <button id="qualHigh" class="active" onclick="setQuality('resnet50')">
+                            🎯 Magas minőség (ResNet50)
+                        </button>
+                        <button id="qualFast" onclick="setQuality('mobilenetv3')">
+                            ⚡ Gyors (MobileNetV3)
+                        </button>
+                    </div>
+                    <small style="color:var(--text-secondary);font-size:0.8rem;margin-top:4px;">
+                        Magas minőség: jobb hajél és ruha kontúr · Gyors: rövidebb feldolgozási idő
+                    </small>
+                </div>
+
+                <div class="config-row">
+                    <label class="custom-checkbox">
+                        <input type="checkbox" id="colorCorrectCheck" checked>
+                        <span class="checkmark"></span>
+                        Automatikus színkorrekció (háttér megvilágítás illesztése)
+                    </label>
+                </div>
+
+                <div class="actions" style="gap:12px;">
+                    <button class="btn btn-secondary" onclick="resetPage()">← Vissza</button>
+                    <button id="startBtn" class="btn btn-accent">Feldolgozás indítása</button>
+                </div>
+            </section>
+
+            <!-- Step 3: Processing -->
+            <section id="statusSection" class="card hidden">
+                <div class="status-header">
+                    <h2 id="jobStatusTitle">Feldolgozás...</h2>
+                    <span id="jobStageBadge" class="badge">Inicializálás</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar" style="width:0%"></div>
+                </div>
+                <p id="statusDetail" class="status-detail">PPT háttércsere folyamatban...</p>
+                <div id="statusActions" style="margin-top:16px; display:flex; gap:12px;">
+                    <button class="btn btn-secondary" id="cancelJobBtn" style="font-size:0.8rem;opacity:0.7;" onclick="cancelJob()">⏸️ Megszakítás / Szünet</button>
+                    <button class="btn btn-accent hidden" id="resumeJobBtn" style="font-size:0.8rem;" onclick="resumeJob()">▶ Folytatás</button>
+                </div>
+            </section>
+
+            <!-- Step 4: Download -->
+            <section id="downloadSection" class="card hidden">
+                <h2>✅ Háttércsere kész!</h2>
+                <p class="hint" style="margin-bottom:24px;">Az új prezentáció beillesztése sikeresen megtörtént.</p>
+                <div class="download-grid">
+                    <div class="download-card">
+                        <span class="icon">🖼️</span>
+                        <span class="label">PPT-cserélt videó</span>
+                        <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:16px;" id="outputFilename">output.mp4</p>
+                        <div class="download-card-actions">
+                            <button class="btn btn-accent" onclick="downloadOutput()">Letöltés</button>
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top:24px;">
+                    <button class="btn btn-secondary" onclick="resetPage()">← Új videó feldolgozása</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="mock_core.js"></script>
+<script src="mock_routes_core.js"></script>
+<script src="mock_routes_batch.js"></script>
+<script src="mock_routes_ppt.js"></script>
+<script src="mock_routes_flow.js"></script>
+<script src="mock_routes_subtitle.js"></script>
+<script src="mock_routes_misc.js"></script>
+<script src="shared.js?v=11"></script>
+    <script src="ppt_replace.js"></script>
+    <script>
+        // Egységes fejléc-csík — PPT csere, lila színkód. A folyamatnak nincs
+        // batch változata (mode=batch-et a shared.js nem ad toggle-linket,
+        // mert a _PROCESS_META-ban a batchHref=null).
+        (function() {
+            if (typeof renderProcessBanner === 'function') {
+                renderProcessBanner({ process: 'ppt_replace', mode: 'single' });
+            }
+        })();
+    </script>
+    <script>
+      if (false /* demo: SW off */) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('sw.js').catch(function (err) {
+            console.warn('SW reg failed:', err);
+          });
+        });
+      }
+    </script>
+</body>
+</html>

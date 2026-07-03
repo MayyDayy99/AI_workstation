@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0e0e1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="EDTI Studio">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon.svg">
+    <title>EDTI Stúdió — Flow Builder</title>
+    <link rel="stylesheet" href="style.css?v=5">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="mock_core.js"></script>
+<script src="mock_routes_core.js"></script>
+<script src="mock_routes_batch.js"></script>
+<script src="mock_routes_ppt.js"></script>
+<script src="mock_routes_flow.js"></script>
+<script src="mock_routes_subtitle.js"></script>
+<script src="mock_routes_misc.js"></script>
+<script src="shared.js?v=11"></script>
+    <style>
+        /* Flow Builder — egyedi layout, csak ezen az oldalon él */
+        body { overflow: hidden; }
+
+        .flow-app {
+            display: grid;
+            grid-template-columns: 250px 1fr 320px;
+            grid-template-rows: 56px 1fr;
+            height: 100vh;
+            background: #0e0e1a;
+        }
+        .flow-toolbar {
+            grid-column: 1 / -1;
+            background: #14142a;
+            border-bottom: 1px solid #2a2a4a;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 12px;
+            color: #e5e7eb;
+        }
+        .flow-toolbar .brand-link {
+            color: #a5b4fc;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 1rem;
+        }
+        .flow-toolbar input[type=text] {
+            background: #0f172a;
+            border: 1px solid #374151;
+            color: #e5e7eb;
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 0.9rem;
+            min-width: 280px;
+        }
+        .flow-toolbar button {
+            font-size: 0.85rem;
+            padding: 6px 14px;
+        }
+        .flow-toolbar .toolbar-spacer { flex: 1; }
+        .flow-toolbar .pill {
+            font-size: 0.72rem;
+            background: rgba(99,102,241,0.15);
+            color: #a5b4fc;
+            border: 1px solid rgba(99,102,241,0.3);
+            border-radius: 4px;
+            padding: 2px 8px;
+        }
+
+        /* Palette — bal oldali node-választó + sablon-lista */
+        .flow-palette {
+            background: #14142a;
+            border-right: 1px solid #2a2a4a;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .flow-palette .palette-section {
+            padding: 14px 14px;
+            border-bottom: 1px solid #2a2a4a;
+        }
+        .flow-palette h3 {
+            margin: 0 0 10px;
+            font-size: 0.75rem;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .palette-node {
+            background: #1a1a2e;
+            border: 1px solid #374151;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-bottom: 6px;
+            color: #e5e7eb;
+            cursor: grab;
+            font-size: 0.88rem;
+            user-select: none;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .palette-node:hover {
+            background: #232342;
+            border-color: #6366f1;
+        }
+        .palette-node:active { cursor: grabbing; }
+        .palette-template-list { font-size: 0.82rem; }
+        .palette-template-list .tpl-tab {
+            display: inline-block;
+            padding: 4px 9px;
+            margin-right: 4px;
+            margin-bottom: 6px;
+            font-size: 0.7rem;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #1a1a2e;
+            color: #9ca3af;
+            border: 1px solid #374151;
+        }
+        .palette-template-list .tpl-tab.active {
+            background: #6366f1;
+            color: #fff;
+            border-color: #6366f1;
+        }
+        .palette-template-list .tpl-item {
+            background: #1a1a2e;
+            border: 1px solid #374151;
+            border-radius: 5px;
+            padding: 7px 10px;
+            margin-bottom: 4px;
+            color: #e5e7eb;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .palette-template-list .tpl-item:hover { border-color: #a78bfa; }
+        .palette-template-list .tpl-meta {
+            font-size: 0.7rem; color: #6b7280; margin-top: 2px;
+        }
+        .palette-template-list .tpl-name { font-weight: 500; }
+
+        /* Canvas — közép */
+        .flow-canvas-wrap {
+            position: relative;
+            overflow: hidden;
+            background:
+                radial-gradient(circle, rgba(99,102,241,0.06) 1px, transparent 1px),
+                #0e0e1a;
+            background-size: 24px 24px;
+        }
+        .flow-canvas {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transform-origin: 0 0;
+            transition: transform 0.12s ease;
+        }
+        /* Zoom-kontroll a kanvas-wrap jobb-alsó sarkában — overlay, nem foglal helyet */
+        .zoom-controls {
+            position: absolute;
+            right: 16px;
+            bottom: 16px;
+            display: flex;
+            gap: 4px;
+            background: rgba(20,20,42,0.85);
+            border: 1px solid #2a2a4a;
+            border-radius: 8px;
+            padding: 4px;
+            z-index: 6;
+            backdrop-filter: blur(6px);
+        }
+        .zoom-controls button {
+            background: transparent;
+            border: none;
+            color: #e5e7eb;
+            font-size: 0.95rem;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            min-width: 32px;
+        }
+        .zoom-controls button:hover { background: rgba(99,102,241,0.2); }
+        .zoom-controls #zoomLabel {
+            color: #a5b4fc;
+            font-size: 0.78rem;
+            padding: 4px 8px;
+            font-weight: 600;
+            min-width: 44px;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+        }
+        .flow-canvas svg.flow-edges {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: visible;       /* allow path geometry drawn at logical coords beyond the SVG's intrinsic viewport to render at zoom > 1 — without this, the SVG clips edges/chip-anchors at its untransformed bounds while node divs (HTML siblings) stay visible, producing the 'nodes and edges drift apart' symptom */
+            pointer-events: none;
+        }
+        .flow-canvas svg.flow-edges path {
+            fill: none;
+            stroke: #6366f1;
+            stroke-width: 2;
+            pointer-events: stroke;
+            cursor: pointer;
+        }
+        .flow-canvas svg.flow-edges path:hover { stroke: #a78bfa; stroke-width: 3; }
+
+        .flow-node {
+            position: absolute;
+            background: #1a1a2e;
+            border: 2px solid #374151;
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: #e5e7eb;
+            min-width: 170px;
+            cursor: grab;
+            user-select: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+            z-index: 2;
+        }
+        .flow-node:hover { border-color: #a78bfa; }
+        .flow-node.selected {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.2);
+        }
+        .flow-node .node-title {
+            font-weight: 600;
+            font-size: 0.92rem;
+            margin-bottom: 4px;
+        }
+        .flow-node .node-type {
+            font-size: 0.7rem;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .flow-node .node-status {
+            font-size: 0.68rem;
+            margin-top: 6px;
+            display: inline-block;
+            padding: 1px 7px;
+            border-radius: 3px;
+            background: #2a2a4a;
+            color: #9ca3af;
+        }
+        /* Upload-node előre-feltöltött fájl-jelzés a node-on belül */
+        .flow-node .upload-file-badge {
+            font-size: 0.68rem;
+            margin-top: 6px;
+            padding: 3px 7px;
+            border-radius: 4px;
+            background: rgba(16,185,129,0.12);
+            color: #10b981;
+            border: 1px solid rgba(16,185,129,0.35);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 200px;
+        }
+        .flow-node.status-running { border-color: #6366f1; }
+        .flow-node.status-running .node-status { background: #6366f1; color: #fff; }
+        .flow-node.status-done { border-color: #10b981; }
+        .flow-node.status-done .node-status { background: #10b981; color: #fff; }
+        .flow-node.status-error { border-color: #ef4444; }
+        .flow-node.status-error .node-status { background: #ef4444; color: #fff; }
+        .flow-node.status-cancelled,
+        .flow-node.status-skipped { opacity: 0.5; }
+
+        .flow-node .node-port {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #1a1a2e;
+            border: 2px solid #6366f1;
+            cursor: crosshair;
+            z-index: 3;
+            transition: transform 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+        }
+        .flow-node .node-port:hover {
+            background: #6366f1;
+            transform: translateY(-50%) scale(1.3);
+        }
+        .flow-node .node-port.in { left: -12px; top: 50%; transform: translateY(-50%); }
+        .flow-node .node-port.out { right: -12px; top: 50%; transform: translateY(-50%); }
+        .flow-node .node-port.in:hover { transform: translateY(-50%) scale(1.3); }
+        .flow-node .node-port.out:hover { transform: translateY(-50%) scale(1.3); }
+        .flow-node .node-port.highlight-target {
+            background: #10b981;
+            border-color: #10b981;
+            box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.3);
+            animation: portPulse 1.2s ease-in-out infinite;
+        }
+        @keyframes portPulse {
+            0%, 100% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.25); }
+            50%      { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0.05); }
+        }
+        /* Drag-time inkompatibilis port — piros pulse + crosshair-blokk-jelzés.
+           A FE asset-mismatch detektál → a user húzás közben látja, hogy ide
+           nem érdemes lerakni. A mouseup leblokkolja a tényleges edge-rajzolást. */
+        .flow-node .node-port.highlight-incompat {
+            background: #ef4444;
+            border-color: #ef4444;
+            cursor: not-allowed;
+            box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.28);
+            animation: portPulseErr 1.2s ease-in-out infinite;
+        }
+        @keyframes portPulseErr {
+            0%, 100% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.25); }
+            50%      { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0.05); }
+        }
+
+        .flow-node .node-delete {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #ef4444;
+            color: #fff;
+            border: 2px solid #0e0e1a;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .flow-node.selected .node-delete { display: flex; }
+
+        /* Asset-chip az edge-en */
+        .flow-asset-chip {
+            position: absolute;
+            background: #14142a;
+            border: 1px solid #6366f1;
+            color: #a5b4fc;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            z-index: 4;
+            pointer-events: auto;
+            transition: background 0.15s;
+        }
+        .flow-asset-chip:hover { background: #232342; }
+
+        /* Props panel — jobb oldal */
+        .flow-props {
+            background: #14142a;
+            border-left: 1px solid #2a2a4a;
+            overflow-y: auto;
+            padding: 14px;
+            color: #e5e7eb;
+        }
+        .flow-props h3 { margin-top: 0; font-size: 1rem; }
+        .flow-props .props-empty {
+            color: #6b7280;
+            font-size: 0.85rem;
+            text-align: center;
+            margin-top: 30px;
+        }
+        .flow-props label {
+            display: block;
+            font-size: 0.72rem;
+            color: #9ca3af;
+            margin-top: 10px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .flow-props input[type=text],
+        .flow-props input[type=number],
+        .flow-props select {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #374151;
+            color: #e5e7eb;
+            padding: 7px 9px;
+            border-radius: 5px;
+            font-size: 0.88rem;
+            box-sizing: border-box;
+        }
+        .flow-props .props-check {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 10px;
+            font-size: 0.88rem;
+            cursor: pointer;
+        }
+
+        /* Status panel (alsó) — flow-run progress */
+        .flow-runs-panel {
+            position: fixed;
+            bottom: 0;
+            left: 250px;
+            right: 320px;
+            max-height: 200px;
+            background: #14142a;
+            border-top: 1px solid #2a2a4a;
+            overflow-y: auto;
+            padding: 12px;
+            transform: translateY(100%);
+            transition: transform 0.2s;
+            z-index: 5;
+        }
+        .flow-runs-panel.open { transform: translateY(0); }
+        .flow-runs-panel h4 {
+            margin: 0 0 8px;
+            font-size: 0.85rem;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .flow-runs-panel .run-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 6px 0;
+            border-bottom: 1px solid #2a2a4a;
+            font-size: 0.82rem;
+            color: #e5e7eb;
+        }
+        .flow-runs-panel .run-row .run-name { flex: 1; }
+        .flow-runs-panel .run-row .run-progress {
+            width: 120px;
+            height: 4px;
+            background: #2a2a4a;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .flow-runs-panel .run-row .run-progress-fill {
+            height: 100%;
+            background: #6366f1;
+            transition: width 0.3s;
+        }
+        .flow-runs-panel .run-row .run-status {
+            font-size: 0.7rem;
+            padding: 1px 7px;
+            border-radius: 3px;
+            background: #2a2a4a;
+            color: #9ca3af;
+        }
+        .flow-runs-panel .run-row .run-status.running { background:#6366f1; color:#fff; }
+        .flow-runs-panel .run-row .run-status.done { background:#10b981; color:#fff; }
+        .flow-runs-panel .run-row .run-status.error { background:#ef4444; color:#fff; }
+
+        /* Mobil-fallback redirect (lásd JS, ha túl szűk a viewport) */
+        .mobile-warning {
+            display: none;
+            padding: 40px;
+            text-align: center;
+            color: #e5e7eb;
+        }
+        .mobile-warning .mobile-runs-list {
+            margin-top: 24px;
+            text-align: left;
+            max-width: 480px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .mobile-warning .mobile-runs-list .run-row {
+            background: #14142a;
+            border: 1px solid #2a2a4a;
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            font-size: 0.88rem;
+        }
+        @media (max-width: 1100px) {
+            .flow-app { display: none; }
+            .mobile-warning { display: block; }
+        }
+
+        /* Empty-canvas onboarding overlay — segít az első használatnál. */
+        .canvas-onboarding {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #e5e7eb;
+            opacity: 0.55;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Currently-running flow_run row highlight a runs-panelben. */
+        .flow-runs-panel .run-row.current {
+            border-left: 3px solid #6366f1;
+            padding-left: 9px;
+            background: rgba(99,102,241,0.06);
+        }
+        .flow-runs-panel { max-height: 320px; }
+
+        /* Toast */
+        .flow-toast {
+            position: fixed;
+            top: 80px;
+            right: 24px;
+            background: #14142a;
+            border: 1px solid #6366f1;
+            color: #e5e7eb;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 0.88rem;
+            z-index: 999;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            animation: toastIn 0.2s;
+        }
+        .flow-toast.error { border-color: #ef4444; }
+        .flow-toast.ok { border-color: #10b981; }
+        @keyframes toastIn { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
+
+        /* File-upload modal */
+        .flow-upload-modal {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            align-items: center; justify-content: center;
+            z-index: 9999;
+        }
+        .flow-upload-modal.show { display: flex; }
+        .flow-upload-modal-box {
+            background: #1a1a2e;
+            border: 1px solid #6366f1;
+            border-radius: 12px;
+            padding: 24px;
+            color: #e5e7eb;
+            max-width: 500px;
+            width: 90%;
+        }
+        .flow-upload-modal-box h3 { margin-top: 0; }
+        .flow-upload-modal-box p { color: #9ca3af; font-size: 0.88rem; }
+        .flow-upload-modal-box .actions {
+            margin-top: 18px; display: flex; gap: 8px; justify-content: flex-end;
+        }
+        .flow-upload-dropzone {
+            border: 2px dashed #374151;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            color: #9ca3af;
+            margin-top: 14px;
+            cursor: pointer;
+        }
+        .flow-upload-dropzone.dragover {
+            border-color: #6366f1;
+            background: rgba(99,102,241,0.08);
+        }
+
+        /* Per-upload-node dropzone listája a multi-upload modalban */
+        .flow-upload-slots { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+        .flow-upload-slot {
+            border: 2px dashed #374151;
+            border-radius: 8px;
+            padding: 14px;
+            color: #9ca3af;
+            background: rgba(15,23,42,0.4);
+            transition: border-color 0.15s, background 0.15s;
+        }
+        .flow-upload-slot.dragover {
+            border-color: #6366f1;
+            background: rgba(99,102,241,0.10);
+        }
+        .flow-upload-slot.filled {
+            border-color: #10b981;
+            border-style: solid;
+            background: rgba(16,185,129,0.06);
+        }
+        .flow-upload-slot .slot-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 0.82rem;
+            color: #e5e7eb;
+        }
+        .flow-upload-slot .slot-label {
+            font-weight: 600;
+            color: #a5b4fc;
+        }
+        .flow-upload-slot .slot-file-name {
+            font-size: 0.78rem;
+            color: #10b981;
+        }
+        .flow-upload-slot .slot-browse {
+            background: transparent;
+            border: 1px solid #374151;
+            color: #9ca3af;
+            padding: 3px 9px;
+            border-radius: 4px;
+            font-size: 0.72rem;
+            cursor: pointer;
+        }
+        .flow-upload-slot .slot-browse:hover {
+            border-color: #6366f1;
+            color: #e5e7eb;
+        }
+        .flow-upload-slot .slot-drophint {
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+
+        /* Generic confirm / template-save / clone-name modal */
+        .flow-modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            align-items: center; justify-content: center;
+            z-index: 10000;
+        }
+        .flow-modal-overlay.show { display: flex; }
+        .flow-modal-box {
+            background: #1a1a2e;
+            border: 1px solid #6366f1;
+            border-radius: 12px;
+            padding: 22px 24px;
+            color: #e5e7eb;
+            max-width: 460px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+        }
+        .flow-modal-box h3 { margin: 0 0 10px; font-size: 1.05rem; }
+        .flow-modal-box p { color: #9ca3af; font-size: 0.88rem; margin: 6px 0 12px; }
+        .flow-modal-box label {
+            display: block;
+            font-size: 0.72rem;
+            color: #9ca3af;
+            margin-top: 12px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .flow-modal-box input[type=text],
+        .flow-modal-box textarea {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #374151;
+            color: #e5e7eb;
+            padding: 7px 9px;
+            border-radius: 5px;
+            font-size: 0.88rem;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+        .flow-modal-box textarea { min-height: 70px; resize: vertical; }
+        .flow-modal-box .radio-row {
+            display: flex; gap: 12px; flex-wrap: wrap;
+            margin-top: 4px;
+        }
+        .flow-modal-box .radio-row label {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            margin: 0;
+            text-transform: none;
+            letter-spacing: 0;
+            font-size: 0.85rem;
+            color: #e5e7eb;
+            cursor: pointer;
+        }
+        .flow-modal-box .actions {
+            margin-top: 18px;
+            display: flex; gap: 8px; justify-content: flex-end;
+        }
+        .flow-modal-box .validation-status {
+            margin-top: 10px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            background: rgba(99,102,241,0.08);
+            border: 1px solid rgba(99,102,241,0.3);
+            color: #a5b4fc;
+        }
+        .flow-modal-box .validation-status.ok {
+            background: rgba(16,185,129,0.08);
+            border-color: rgba(16,185,129,0.35);
+            color: #10b981;
+        }
+        .flow-modal-box .validation-status.error {
+            background: rgba(239,68,68,0.08);
+            border-color: rgba(239,68,68,0.35);
+            color: #f87171;
+        }
+        .flow-modal-box .validation-status ul {
+            margin: 4px 0 0 18px;
+            padding: 0;
+        }
+
+        /* Run-row action buttons */
+        .flow-runs-panel .run-row .run-actions {
+            display: flex;
+            gap: 4px;
+            margin-left: 6px;
+        }
+        .flow-runs-panel .run-row .run-actions button {
+            background: transparent;
+            border: 1px solid #374151;
+            color: #9ca3af;
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-size: 0.72rem;
+            cursor: pointer;
+            transition: border-color 0.12s, color 0.12s;
+        }
+        .flow-runs-panel .run-row .run-actions button:hover {
+            border-color: #6366f1;
+            color: #e5e7eb;
+        }
+        .flow-runs-panel .run-row .run-actions .act-cancel:hover {
+            border-color: #ef4444;
+            color: #f87171;
+        }
+
+        /* Download-node asset list a props panelben */
+        .download-asset-list {
+            margin-top: 12px;
+            padding: 10px;
+            background: rgba(16,185,129,0.06);
+            border: 1px solid rgba(16,185,129,0.35);
+            border-radius: 6px;
+        }
+        .download-asset-list h4 {
+            margin: 0 0 8px;
+            font-size: 0.78rem;
+            color: #10b981;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .download-asset-list a {
+            display: block;
+            padding: 5px 8px;
+            margin-bottom: 4px;
+            background: #0f172a;
+            border: 1px solid #374151;
+            border-radius: 4px;
+            color: #a5b4fc;
+            text-decoration: none;
+            font-size: 0.82rem;
+            word-break: break-all;
+        }
+        .download-asset-list a:hover {
+            border-color: #6366f1;
+            color: #e5e7eb;
+        }
+        .download-asset-badge {
+            font-size: 0.65rem;
+            margin-top: 5px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: rgba(16,185,129,0.15);
+            color: #10b981;
+            border: 1px solid rgba(16,185,129,0.4);
+            display: inline-block;
+        }
+
+        /* Toolbar undo/redo buttons */
+        .flow-toolbar button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Draft restore banner (auto-load) */
+        .flow-restore-banner {
+            position: absolute;
+            top: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #14142a;
+            border: 1px solid #6366f1;
+            color: #e5e7eb;
+            padding: 10px 16px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.86rem;
+            z-index: 7;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+            animation: toastIn 0.25s;
+        }
+        .flow-restore-banner .restore-text {
+            color: #e5e7eb;
+        }
+        .flow-restore-banner button {
+            background: transparent;
+            border: 1px solid #374151;
+            color: #e5e7eb;
+            padding: 4px 10px;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .flow-restore-banner button.primary {
+            border-color: #6366f1;
+            background: rgba(99,102,241,0.15);
+            color: #a5b4fc;
+        }
+        .flow-restore-banner button:hover {
+            border-color: #a78bfa;
+        }
+    </style>
+</head>
+<body>
+
+<div class="mobile-warning">
+    <h2>🖥️ Desktop ajánlott</h2>
+    <p>A Flow Builder vizuális kanvasa min. 1100px szélességű képernyőn működik kényelmesen.</p>
+    <p>Mobilról vagy keskeny tabletről használd a <a href="index.html" style="color:#a78bfa;">főoldal</a> egyedi modul-oldalait + Quick-combo gombokat — ott minden mobil-barát.</p>
+    <div class="mobile-runs-list">
+        <h3 style="font-size:0.85rem; color:#9ca3af; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px;">Aktív + utolsó flow-futások (csak nézet)</h3>
+        <div id="mobileRunsList"><div style="color:#6b7280; font-size:0.85rem;">Betöltés…</div></div>
+    </div>
+</div>
+
+<div class="flow-app">
+    <div class="flow-toolbar">
+        <a class="brand-link" href="index.html">← EDTI Stúdió</a>
+        <span class="pill">Flow Builder</span>
+        <input type="text" id="flowNameInput" placeholder="Flow neve…" value="Új flow">
+        <div class="toolbar-spacer"></div>
+        <button class="btn btn-secondary" onclick="FlowBuilder.toggleRunsPanel()" title="Aktív + utolsó flow-futások">📊 Futások</button>
+        <button class="btn btn-secondary" onclick="FlowBuilder.saveTemplate()" title="Mentés szerveroldali sablonként (csak ha valid)">💾 Sablon</button>
+        <button class="btn btn-secondary" onclick="FlowBuilder.exportFlow()" title="Lokális JSON-fájl letöltés (vázlat is exportálható)">📥 Export</button>
+        <button class="btn btn-secondary" onclick="FlowBuilder.importFlow()" title="Lokális JSON-fájl betöltés (felülírja a jelenlegit)">📤 Import</button>
+        <button class="btn btn-secondary" id="undoBtn" onclick="FlowBuilder.undo()" title="Visszavonás (Ctrl-Z)" disabled>↶ Vissza</button>
+        <button class="btn btn-secondary" id="redoBtn" onclick="FlowBuilder.redo()" title="Újra (Ctrl-Shift-Z / Ctrl-Y)" disabled>↷ Újra</button>
+        <button class="btn btn-secondary" onclick="FlowBuilder.clearFlow()" title="Üres flow">🗑️ Új</button>
+        <button class="btn btn-primary" id="runBtn" onclick="FlowBuilder.runFlow()">▶ Indítás</button>
+    </div>
+
+    <aside class="flow-palette">
+        <div class="palette-section">
+            <h3>Csempék (drag a kanvasra)</h3>
+            <div id="nodePalette"></div>
+        </div>
+        <div class="palette-section">
+            <h3>Sablonok</h3>
+            <div class="palette-template-list">
+                <span class="tpl-tab active" data-tpl-tab="own" title="Csak az általad mentett sablonok">Saját</span>
+                <span class="tpl-tab" data-tpl-tab="workspace" title="A munkacsapatoddal megosztott sablonok">Workspace</span>
+                <span class="tpl-tab" data-tpl-tab="shared" title="Mindenki számára elérhető publikus sablonok">Általános</span>
+                <div id="templateList" style="margin-top:8px;"></div>
+            </div>
+        </div>
+    </aside>
+
+    <div class="flow-canvas-wrap">
+        <div class="flow-canvas" id="flowCanvas">
+            <svg class="flow-edges" id="flowEdges"></svg>
+            <!-- nodes are appended here by JS -->
+        </div>
+
+        <!-- Zoom-kontroll (overlay a kanvas felett, nem skálázódik a zoom-mal) -->
+        <div class="zoom-controls" title="Zoom — vagy Ctrl+egérgörgő">
+            <button type="button" onclick="FlowBuilder.zoomOut()" title="Kicsinyítés">−</button>
+            <span id="zoomLabel">100%</span>
+            <button type="button" onclick="FlowBuilder.zoomIn()" title="Nagyítás">+</button>
+            <button type="button" onclick="FlowBuilder.resetZoom()" title="100%">⟳</button>
+            <button type="button" onclick="FlowBuilder.fitToView()" title="Az összes node-ot belefoglaló zoom">⤢</button>
+        </div>
+
+        <div class="flow-runs-panel" id="runsPanel">
+            <h4>Aktív + utolsó flow-futások</h4>
+            <div id="flowRunsList">Betöltés…</div>
+        </div>
+    </div>
+
+    <aside class="flow-props" id="propsPanel">
+        <div class="props-empty">
+            Válassz ki egy node-ot a beállításokhoz.<br><br>
+            <small>Vagy húzz egy csempét a bal oldali palettáról a kanvasra.</small>
+        </div>
+    </aside>
+</div>
+
+<!-- Upload modal — feltöltés ELŐTT, ha a flow input-fájlt kíván -->
+<div class="flow-upload-modal" id="uploadModal">
+    <div class="flow-upload-modal-box">
+        <h3>📁 Indítás — feltöltés</h3>
+        <p id="uploadModalDesc">A flow indításához egy vagy több bemeneti fájl kell. Húzd ide vagy tallózd.</p>
+        <!-- Single-slot legacy dropzone (csak ha 0 vagy 1 upload-node) -->
+        <div class="flow-upload-dropzone" id="flowUploadDz">
+            <p>Húzd ide a fájlokat<br>vagy klikkelj a tallózáshoz</p>
+            <input type="file" id="flowUploadInput" multiple style="display:none;">
+            <ul id="flowUploadList" style="text-align:left; font-size:0.8rem; color:#9ca3af; margin-top:10px;"></ul>
+        </div>
+        <!-- Multi-slot: 1 dropzone PER upload-node, csak ha >1 upload-node és legalább egy ures -->
+        <div class="flow-upload-slots" id="flowUploadSlots" style="display:none;"></div>
+        <div class="actions">
+            <button class="btn btn-secondary" onclick="FlowBuilder.closeUploadModal()">Mégse</button>
+            <button class="btn btn-primary" id="uploadModalSubmit" onclick="FlowBuilder.confirmUploadAndRun()">Feltöltés + Indítás</button>
+        </div>
+    </div>
+</div>
+
+<!-- Generic confirm dialog (replaces native confirm()) -->
+<div class="flow-modal-overlay" id="confirmModal">
+    <div class="flow-modal-box">
+        <h3 id="confirmModalTitle">Megerősítés</h3>
+        <p id="confirmModalMsg"></p>
+        <div class="actions">
+            <button class="btn btn-secondary" id="confirmModalCancel">Mégse</button>
+            <button class="btn btn-primary" id="confirmModalOk">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- Save-template modal (replaces native prompt() for visibility) -->
+<div class="flow-modal-overlay" id="saveTemplateModal">
+    <div class="flow-modal-box">
+        <h3>💾 Sablon mentése</h3>
+        <p>Add meg a sablon adatait. A backend ellenőrzi az érvényességet — kliens-oldalon is futtatunk gyors checket.</p>
+        <label>Név</label>
+        <input type="text" id="tplName" placeholder="Pl. Magyar szinkron + felirat">
+        <label>Láthatóság</label>
+        <div class="radio-row">
+            <label><input type="radio" name="tplVis" value="private" checked> Privát (csak nekem)</label>
+            <label><input type="radio" name="tplVis" value="workspace"> Workspace</label>
+            <label><input type="radio" name="tplVis" value="shared"> Megosztott</label>
+        </div>
+        <label>Leírás (opcionális)</label>
+        <textarea id="tplDesc" placeholder="Rövid leírás…"></textarea>
+        <div id="tplValidation" class="validation-status">Validáció fut…</div>
+        <div class="actions">
+            <button class="btn btn-secondary" onclick="FlowBuilder._closeSaveTemplateModal()">Mégse</button>
+            <button class="btn btn-primary" id="tplSubmitBtn" onclick="FlowBuilder._submitSaveTemplate()">Mentés</button>
+        </div>
+    </div>
+</div>
+
+<!-- Clone-name modal (after Clone action a run-row-bol) -->
+<div class="flow-modal-overlay" id="cloneNameModal">
+    <div class="flow-modal-box">
+        <h3>⟲ Flow klónozása</h3>
+        <p>Add meg az új flow nevét. A betöltött gráfon szabadon szerkeszthetsz, mielőtt indítanád.</p>
+        <label>Új név</label>
+        <input type="text" id="cloneName">
+        <div class="actions">
+            <button class="btn btn-secondary" onclick="FlowBuilder._closeCloneModal()">Mégse</button>
+            <button class="btn btn-primary" onclick="FlowBuilder._confirmClone()">Betöltés a kanvasra</button>
+        </div>
+    </div>
+</div>
+
+<!-- Restore banner (draft auto-load) -->
+<div id="flowRestoreBanner" style="display:none;"></div>
+
+<script src="dedup.js"></script>
+<script src="upload_queue.js?v=1"></script>
+<script src="flow_builder.js?v=8"></script>
+<script>
+  if (false /* demo: SW off */) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function (err) {
+        console.warn('SW reg failed:', err);
+      });
+    });
+  }
+</script>
+</body>
+</html>
