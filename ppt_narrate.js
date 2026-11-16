@@ -79,9 +79,9 @@ function _initDropZone() {
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e =>
         dz.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); }, false));
     ['dragenter', 'dragover'].forEach(e =>
-        dz.addEventListener(e, () => { dz.style.borderColor = '#7c3aed'; dz.style.background = 'rgba(124,58,237,0.1)'; }, false));
+        dz.addEventListener(e, () => { dz.classList.add('dragover'); }, false));
     ['dragleave', 'drop'].forEach(e =>
-        dz.addEventListener(e, () => { dz.style.borderColor = ''; dz.style.background = ''; }, false));
+        dz.addEventListener(e, () => { dz.classList.remove('dragover'); }, false));
     dz.addEventListener('drop', e => { handleSelectedFile(e.dataTransfer.files[0]); }, false);
     input.addEventListener('change', e => { handleSelectedFile(e.target.files[0]); }, false);
     document.getElementById('nextBtn').addEventListener('click', proceedToConfig);
@@ -100,6 +100,35 @@ function handleSelectedFile(file) {
     document.getElementById('nextBtn').disabled = false;
 }
 
+// A PPTX DARABOLVA (5 MiB) megy: egy beágyazott videós előadás-PPTX könnyen
+// 100 MB fölött van, amit a Cloudflare-alagút egyben eldob. A backend
+// 'ppt_narrate' célja ugyanazt a jobot hozza létre, mint a /upload. (UI-33)
+// Tartalék: az egyben küldés, ha az UploadQueue nincs meg. → job_id.
+async function _uploadPptx(file, onProgress) {
+    if (!(window.UploadQueue && window.DedupUpload && DedupUpload.computeSignature)) {
+        const fd = new FormData();
+        fd.append('file', file);
+        const r = await fetch(`${PN_API}/upload`, { method: 'POST', body: fd });
+        if (!r.ok) {
+            const b = await r.json().catch(() => ({}));
+            throw new Error(b.detail || ('HTTP ' + r.status));
+        }
+        return (await r.json()).job_id;
+    }
+    return new Promise((resolve, reject) => {
+        const q = new UploadQueue({
+            maxConcurrent: 1,
+            onProgress: ({ percent, state }) => {
+                if (onProgress && state && !['done', 'error', 'cancelled'].includes(state)) onProgress(percent);
+            },
+            onComplete: ({ job_id }) => job_id ? resolve(job_id)
+                : reject(new Error('a feltöltés nem adott vissza job-azonosítót')),
+            onError: ({ error }) => reject(new Error(error)),
+        });
+        q.enqueue(file, { purpose: 'ppt_narrate' });
+    });
+}
+
 async function proceedToConfig() {
     if (!_pendingFile) return;
     // Dedup: feltöltés előtt azonos-fájl ellenőrzés (fail-open).
@@ -110,15 +139,7 @@ async function proceedToConfig() {
     btn.disabled = true;
     btn.textContent = 'Feltöltés…';
     try {
-        const fd = new FormData();
-        fd.append('file', _pendingFile);
-        const r = await fetch(`${PN_API}/upload`, { method: 'POST', body: fd });
-        if (!r.ok) {
-            const b = await r.json().catch(() => ({}));
-            throw new Error(b.detail || ('HTTP ' + r.status));
-        }
-        const data = await r.json();
-        _currentJobId = data.job_id;
+        _currentJobId = await _uploadPptx(_pendingFile, pct => { btn.textContent = `Feltöltés… ${pct}%`; });
         _currentJobName = _pendingFile.name;
         addJobToHistory(_currentJobId, _currentJobName);
         await VoicePicker.refresh('voiceSelect');
@@ -340,6 +361,7 @@ function addJobToHistory(jobId, fileName) {
                 id: jobId,
                 name: fileName || 'narration',
                 date: new Date().toISOString(),
+                ws: (typeof currentWorkspaceLabel === 'function' ? currentWorkspaceLabel() : null),   // munkaterület-címke (TD-027)
             });
             // Max 50 elem, hogy a localStorage ne nőjjön kontrollálatlanul.
             localStorage.setItem(_HISTORY_KEY, JSON.stringify(hist.slice(0, 50)));
@@ -383,11 +405,11 @@ async function renderHistory() {
     const container = document.getElementById('jobHistory');
     if (!container) return;
     const history = JSON.parse(localStorage.getItem(_HISTORY_KEY) || '[]');
-    const filtered = history.filter(j => _matchHistoryDate(j.date));
+    const filtered = history.filter(j => _matchHistoryDate(j.date) && (typeof isInCurrentWorkspace !== 'function' || isInCurrentWorkspace(j.ws)));
     if (filtered.length === 0) {
         const msg = _historyDateFilter === 'all' ? 'Nincs korábbi feladat'
             : (_historyDateFilter === 'today' ? 'Ma még nincs feltöltés.' : 'Tegnap nincs feltöltés.');
-        container.innerHTML = `<div style="padding:20px;color:#555;font-size:0.85rem;">${msg}</div>`;
+        container.innerHTML = `<div class="empty-history">${msg}</div>`;
         return;
     }
     _renderHistoryItems(container, filtered);
@@ -401,17 +423,15 @@ function _renderHistoryItems(container, items) {
         // emitted two `style="..."` attributes (stage-border + flex-layout)
         // which the browser silently merged to only the first, dropping the
         // flex-direction:column and leaving the row in CSS-default `row`.
-        const stageBorder = job._stage === 'error'
-            ? 'border-left:3px solid #ef4444;'
-            : (job._stage === 'done' ? 'border-left:3px solid #10b981;' : '');
-        const rowStyle = `display:flex;flex-direction:column;gap:6px;align-items:stretch;${stageBorder}`;
+        const stageCls = job._stage === 'error' ? ' stage-error'
+            : (job._stage === 'done' ? ' stage-done' : '');
         const retryBtn = (job._stage === 'error' || job._stage === 'done')
-            ? `<button onclick="retryJobFromHistory('${job.id}', event)" class="btn btn-secondary" style="padding:4px 8px;font-size:0.78rem;border-radius:4px;" title="Újra feldolgozás">🔄</button>`
+            ? `<button onclick="retryJobFromHistory('${job.id}', event)" class="btn btn-secondary btn-xs" title="Újra feldolgozás">🔄</button>`
             : '';
         const previewBtn = (job._stage === 'done')
-            ? `<button onclick="openPreview('${job.id}', event)" class="btn btn-secondary" style="padding:4px 8px;font-size:0.78rem;border-radius:4px;flex:1;" title="Előnézet">👁 Előnézet</button>`
+            ? `<button onclick="openPreview('${job.id}', event)" class="btn btn-secondary btn-xs grow" title="Előnézet">👁 Előnézet</button>`
             : '';
-        const deleteBtn = `<button onclick="deleteJobFromHistory('${job.id}', event)" class="btn btn-secondary" style="padding:4px 8px;font-size:0.8rem;border-radius:4px;" title="Törlés">❌</button>`;
+        const deleteBtn = `<button onclick="deleteJobFromHistory('${job.id}', event)" class="btn btn-secondary btn-xs" title="Törlés">❌</button>`;
         const thumb = (job._stage === 'done')
             ? `<img class="ppt-thumb" loading="lazy" src="${PN_API}/preview/${encodeURIComponent(job.id)}/thumbnail.jpg" alt="" onerror="this.style.display='none'">`
             : '';
@@ -421,13 +441,13 @@ function _renderHistoryItems(container, items) {
         //   row 2 — thumbnail (left) + date (right)
         //   row 3 — Preview button (flex-1) + Retry + Delete, all one line
         return `
-        <div class="job-item${isActive}" onclick="loadJobFromHistory('${job.id}', ${esc(JSON.stringify(job.name))})" style="${rowStyle}">
-            <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.95rem;">${esc(job.name)}</div>
-            <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+        <div class="job-item is-stacked${isActive}${stageCls}" onclick="loadJobFromHistory('${job.id}', ${esc(JSON.stringify(job.name))})">
+            <div class="truncate font-medium text-lg">${esc(job.name)}</div>
+            <div class="row">
                 ${thumb}
-                <div class="job-date" style="flex:1;min-width:0;">🕐 ${_fmtJobDate(job.date)}</div>
+                <div class="job-date grow">🕐 ${_fmtJobDate(job.date)}</div>
             </div>
-            <div style="display:flex;gap:4px;align-items:center;">
+            <div class="row-actions">
                 ${previewBtn}
                 ${retryBtn}
                 ${deleteBtn}
@@ -628,7 +648,6 @@ async function loadPreviewChapters(jobId) {
     if (!wrap) return;
     wrap.innerHTML = '';
     wrap.classList.add('hidden');
-    wrap.style.display = '';
     const video = document.getElementById('previewVideo');
     if (video) video.ontimeupdate = null;
     let chs = [];
@@ -646,7 +665,7 @@ async function loadPreviewChapters(jobId) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'btn btn-secondary';
-        btn.style.cssText = 'padding:3px 8px; font-size:0.75rem; border-radius:4px;';
+        btn.classList.add('btn-sm');
         btn.textContent = `${_fmtChapTime(start)} ${ch.title || ('' + (i + 1) + '. dia')}`;
         btn.onclick = () => {
             const v = document.getElementById('previewVideo');
@@ -657,7 +676,6 @@ async function loadPreviewChapters(jobId) {
         wrap.appendChild(btn);
     });
     wrap.classList.remove('hidden');
-    wrap.style.display = 'flex';
     if (video) {
         video.ontimeupdate = function () {
             const t = video.currentTime || 0;
@@ -666,7 +684,7 @@ async function loadPreviewChapters(jobId) {
                 if (t >= btns[i]._chapStart) active = i;
             }
             btns.forEach((b, i) => {
-                b.style.outline = (i === active) ? '2px solid #8b5cf6' : '';
+                b.classList.toggle('is-active-chapter', i === active);
             });
         };
     }
@@ -683,7 +701,7 @@ function closePreview() {
         try { video.load(); } catch (_) {}
     }
     const chWrap = document.getElementById('previewChapters');
-    if (chWrap) { chWrap.innerHTML = ''; chWrap.classList.add('hidden'); chWrap.style.display = ''; }
+    if (chWrap) { chWrap.innerHTML = ''; chWrap.classList.add('hidden'); }
     modal.classList.add('hidden');
     _previewJobId = null;
     _previewSlidesLoaded = false;
@@ -717,7 +735,7 @@ async function _loadPreviewSlides() {
     if (!_previewJobId) return;
     const body = document.getElementById('previewSlideListBody');
     if (!body) return;
-    body.innerHTML = '<div style="color:#9ca3af;font-size:0.85rem;">Betöltés…</div>';
+    body.innerHTML = '<div class="text-sm text-secondary">Betöltés…</div>';
     try {
         const r = await fetch(`${PN_API}/slides/${encodeURIComponent(_previewJobId)}`, {
             credentials: 'same-origin',
@@ -729,7 +747,7 @@ async function _loadPreviewSlides() {
         const data = await r.json();
         const slides = Array.isArray(data) ? data : (data.slides || []);
         if (!slides.length) {
-            body.innerHTML = '<div style="color:#9ca3af;font-size:0.85rem;">Nincs dia.</div>';
+            body.innerHTML = '<div class="text-sm text-secondary">Nincs dia.</div>';
             _previewSlidesLoaded = true;
             return;
         }
@@ -743,14 +761,14 @@ async function _loadPreviewSlides() {
             return `
             <div class="pn-slide-row" data-slide="${n}">
                 <div class="pn-slide-num">#${n}</div>
-                <div class="pn-slide-notes" title="${safeNotes}">${safeNotes || '<em style="color:#6b7280;">(üres)</em>'}</div>
+                <div class="pn-slide-notes" title="${safeNotes}">${safeNotes || '<em class="text-muted">(üres)</em>'}</div>
                 <div class="pn-slide-status" id="pnSlideStatus-${n}"></div>
-                <button class="btn btn-secondary" style="padding:4px 8px;font-size:0.78rem;border-radius:4px;" onclick="regeneratePreviewSlide(${n})" title="Újragenerálás">🔁 Újragenerál</button>
+                <button class="btn btn-secondary btn-xs" onclick="regeneratePreviewSlide(${n})" title="Újragenerálás">🔁 Újragenerál</button>
             </div>`;
         }).join('');
         _previewSlidesLoaded = true;
     } catch (e) {
-        body.innerHTML = `<div style="color:#ef4444;font-size:0.85rem;">Slide-lista hiba: ${(e.message || e)}</div>`;
+        body.innerHTML = `<div class="text-sm text-danger">Slide-lista hiba: ${(e.message || e)}</div>`;
     }
 }
 
@@ -767,10 +785,31 @@ async function regeneratePreviewSlide(slideNum) {
         return;
     }
     _regenInFlight.add(guardKey);
+    const jobIdAtStart = _previewJobId;
     const statusEl = document.getElementById('pnSlideStatus-' + slideNum);
-    if (statusEl) statusEl.textContent = 'Folyamatban… (1-3 perc)';
+    if (statusEl) {
+        // SYNC-REGEN-CANCEL-1: futás közben Mégse gomb — a backend a
+        // szintézis-passz határán (max ~1 perc) szakítja meg.
+        statusEl.innerHTML = '';
+        statusEl.appendChild(document.createTextNode('Folyamatban… (1-3 perc) '));
+        const cbtn = document.createElement('button');
+        cbtn.type = 'button';
+        cbtn.className = 'btn btn-secondary';
+        cbtn.classList.add('btn-sm');
+        cbtn.textContent = '✋ Mégse';
+        cbtn.onclick = async () => {
+            cbtn.disabled = true;
+            cbtn.textContent = 'Megszakítás…';
+            try {
+                await fetch(`${PN_API}/regen-cancel/${encodeURIComponent(jobIdAtStart)}`, {
+                    method: 'POST', credentials: 'same-origin',
+                });
+            } catch (_) {}
+        };
+        statusEl.appendChild(cbtn);
+    }
     try {
-        const r = await fetch(`${PN_API}/regenerate-slide/${encodeURIComponent(_previewJobId)}`, {
+        const r = await fetch(`${PN_API}/regenerate-slide/${encodeURIComponent(jobIdAtStart)}`, {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
@@ -779,6 +818,11 @@ async function regeneratePreviewSlide(slideNum) {
         if (!r.ok) {
             const b = await r.json().catch(() => ({}));
             throw new Error(b.detail || ('HTTP ' + r.status));
+        }
+        const rb = await r.json().catch(() => ({}));
+        if (rb.status === 'cancelled') {
+            if (statusEl) statusEl.textContent = '🚫 Megszakítva — a dia hangja a következő újragenerálásnál pótlódik';
+            return;
         }
         if (statusEl) statusEl.textContent = '✅ Kész';
         // Cache-bust the video src so the freshly composed mp4 loads.

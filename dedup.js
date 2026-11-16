@@ -178,26 +178,8 @@
   }
 
   // ── duplicate confirmation dialog ─────────────────────────────────────────
-  var STYLE_ID = "dedup-style";
-  function ensureStyle() {
-    if (document.getElementById(STYLE_ID)) return;
-    var st = document.createElement("style");
-    st.id = STYLE_ID;
-    st.textContent =
-      ".dedup-ov{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;" +
-      "align-items:center;justify-content:center;z-index:99999}" +
-      ".dedup-bx{background:#14142a;color:#e0e0e0;border:1px solid #2a2a4a;" +
-      "border-radius:12px;max-width:440px;width:90%;padding:24px;" +
-      "font-family:sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.5)}" +
-      ".dedup-bx h3{margin:0 0 12px;color:#f5b942;font-size:18px}" +
-      ".dedup-bx p{margin:6px 0;line-height:1.45;font-size:14px}" +
-      ".dedup-bx .dedup-meta{color:#9a9ac0;font-size:13px;word-break:break-all}" +
-      ".dedup-row{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}" +
-      ".dedup-btn{border:none;border-radius:8px;padding:9px 16px;font-size:14px;" +
-      "cursor:pointer}.dedup-skip{background:#3b82f6;color:#fff}" +
-      ".dedup-go{background:transparent;color:#9a9ac0;border:1px solid #3a3a5a}";
-    document.head.appendChild(st);
-  }
+  // A doboz stílusa a style.css-ben él (.dedup-*), nem futásidőben
+  // beszúrt <style>-ban — különben kimaradna a téma-váltásból. (UI-13)
 
   function fmtSize(n) {
     if (!n && n !== 0) return "";
@@ -208,7 +190,6 @@
 
   // Returns Promise<"skip"|"proceed">.
   function confirmDuplicate(file, match) {
-    ensureStyle();
     return new Promise(function (resolve) {
       var ov = document.createElement("div");
       ov.className = "dedup-ov";
@@ -222,8 +203,8 @@
         '<p class="dedup-meta">Új fájl: ' + escapeHtml(file.name) +
         " (" + fmtSize(file.size) + ")</p>" +
         '<div class="dedup-row">' +
-        '<button class="dedup-btn dedup-go">Mégis feltöltöm</button>' +
-        '<button class="dedup-btn dedup-skip">Kihagyom</button>' +
+        '<button class="btn btn-secondary dedup-go">Mégis feltöltöm</button>' +
+        '<button class="btn btn-accent dedup-skip">Kihagyom</button>' +
         "</div></div>";
       document.body.appendChild(ov);
       function done(val) { if (ov.parentNode) ov.parentNode.removeChild(ov); resolve(val); }

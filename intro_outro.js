@@ -25,8 +25,7 @@ let _bulkJobIds = [];
 
 // --- Batch Mode State ---
 let currentMode = 'single';
-let batchItems = []; // { file, jobId, lesson, positions: null, status: 'ready' }
-let currentBatchIndex = -1; // -1 means global editing, >=0 means item override
+let batchItems = []; // { file, jobId, lesson, status: 'ready' }
 
 let globalPositions = {
     subject: { x: 50, y: 41 },
@@ -367,7 +366,6 @@ function setAppMode(mode) {
     // Reset state
     currentJobId = null;
     batchItems = [];
-    currentBatchIndex = -1;
 
     const fileList = document.getElementById('fileListContainer');
     if (fileList) fileList.classList.add('hidden');
@@ -390,9 +388,6 @@ function handleBatchFiles(files) {
         file: file,
         jobId: null,
         lesson: filenameToTitle(file.name),
-        subject: null, // Override for subject
-        teacher: null, // Override for teacher
-        positions: null, // Override for positions
         status: 'ready'
     }));
     
@@ -430,22 +425,10 @@ async function handleVideoFile(file) {
     
     originalFilename = file.name;
 
-    const owner = (typeof getOwner === 'function') ? getOwner() : 'default';
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
-        const url = `${IO_API}/upload?owner=${encodeURIComponent(owner)}`;
-        console.log("Fetching upload URL:", url);
-        const res = await fetch(url, { method: 'POST', body: formData });
-        
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.detail || 'Feltöltés sikertelen (Szerver hiba)');
-        }
-        
-        const data = await res.json();
-        currentJobId = data.job_id;
+        currentJobId = await _ioUpload(file, (pct) => {
+            if (nameEl) nameEl.textContent = `🚀 Feltöltés: ${file.name} (${pct}%)`;
+        });
         console.log("Upload Success! Job ID:", currentJobId);
         
         if (nameEl) nameEl.textContent = '✅ Feltöltve: ' + file.name;
@@ -460,6 +443,39 @@ async function handleVideoFile(file) {
     }
 }
 
+// Egy videó feltöltése → job_id (hibánál dob).
+//
+// DARABOLT (5 MiB), ahogy az intro_outro_batch.html-en: a Cloudflare-alagút
+// ~100 MB fölött eldobja az egyben küldött kérést, így egy előadás-videó
+// innen — egyes és a lap saját batch-módjában is — eddig nem jutott fel. A
+// backend 'intro_outro' célja intro_outro-jobot hoz létre, indítás nélkül.
+// (Funkció-ellenőrzés, 5/12.) Tartalék: egyben, ha az UploadQueue nincs meg.
+async function _ioUpload(file, onPct) {
+    if (window.UploadQueue && window.DedupUpload && DedupUpload.computeSignature) {
+        return await new Promise((resolve, reject) => {
+            const q = new UploadQueue({
+                maxConcurrent: 1,
+                onProgress: ({ percent, state }) => {
+                    if (onPct && state && state !== 'done' && state !== 'error' && state !== 'cancelled') onPct(percent);
+                },
+                onComplete: ({ job_id }) => job_id ? resolve(job_id)
+                    : reject(new Error('a feltöltés nem adott vissza job-azonosítót')),
+                onError: ({ error }) => reject(new Error(error)),
+            });
+            q.enqueue(file, { mode: 'intro_outro', purpose: 'intro_outro' });
+        });
+    }
+    const owner = (typeof getOwner === 'function') ? getOwner() : 'default';
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${IO_API}/upload?owner=${encodeURIComponent(owner)}`, { method: 'POST', body: formData });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Feltöltés sikertelen (Szerver hiba)');
+    }
+    return (await res.json()).job_id;
+}
+
 // ============================================================
 // CONFIGURE
 // ============================================================
@@ -471,9 +487,9 @@ async function showConfig() {
         progDiv.id = 'batchUploadProgress';
         progDiv.style.marginTop = '20px';
         progDiv.innerHTML = `
-            <p style="font-size: 0.8rem; color: var(--text-secondary);">Fájlok előkészítése... <span id="batchUploadCount">0</span>/${batchItems.length}</p>
-            <div class="progress-bar" style="height:8px; background:var(--bg-dark); border-radius:4px; overflow:hidden;">
-                <div id="batchUploadFill" class="progress-fill" style="width: 0%; height:100%; background:var(--accent); transition: width 0.3s;"></div>
+            <p class="text-xs text-secondary">Fájlok előkészítése... <span id="batchUploadCount">0</span>/${batchItems.length}</p>
+            <div class="progress-bar-container">
+                <div id="batchUploadFill" class="progress-bar" style="width:0%"></div>
             </div>
         `;
         uploadSection.appendChild(progDiv);
@@ -484,27 +500,17 @@ async function showConfig() {
                 batchItems[i].skipped = true;
                 continue;
             }
-            const formData = new FormData();
-            formData.append('file', batchItems[i].file);
-            const owner = getOwner() || 'default';
             try {
-                const res = await fetch(`${IO_API}/upload?owner=${encodeURIComponent(owner)}`, {
-                    method: 'POST', body: formData
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    batchItems[i].jobId = data.job_id;
-                    saveJobToHistory(data.job_id, batchItems[i].file.name);
-                }
-                const pct = ((i + 1) / batchItems.length) * 100;
-                document.getElementById('batchUploadFill').style.width = pct + '%';
-                document.getElementById('batchUploadCount').innerText = i+1;
+                const jobId = await _ioUpload(batchItems[i].file);
+                batchItems[i].jobId = jobId;
+                saveJobToHistory(jobId, batchItems[i].file.name);
             } catch (err) {
                 console.error("Batch upload failed for item", i, err);
             }
+            const pct = ((i + 1) / batchItems.length) * 100;
+            document.getElementById('batchUploadFill').style.width = pct + '%';
+            document.getElementById('batchUploadCount').innerText = i+1;
         }
-        renderBatchTable();
-        document.getElementById('batchTableContainer').classList.remove('hidden');
         progDiv.remove();
     }
 
@@ -573,39 +579,10 @@ window.updatePreviewText = function(source = 'input') {
     let teacher = '';
 
     if (currentMode === 'batch') {
-        if (currentBatchIndex >= 0) {
-            const item = batchItems[currentBatchIndex];
-            
-            // Sync from main inputs to item if typing
-            if (source === 'input') {
-                const subIn = document.getElementById('openingSubject');
-                const lesIn = document.getElementById('openingLesson');
-                const teaIn = document.getElementById('openingTeacher');
-                
-                if (subIn) item.subject = subIn.value;
-                if (lesIn) {
-                    item.lesson = lesIn.value;
-                    const rowTextarea = document.querySelector(`#batchTableBody tr:nth-child(${currentBatchIndex + 1}) textarea`);
-                    if (rowTextarea) rowTextarea.value = lesIn.value;
-                }
-                if (teaIn) item.teacher = teaIn.value;
-            }
-
-            subject = item.subject !== null ? item.subject : (document.getElementById('openingSubject').value || 'Tárgy címe');
-            lesson = item.lesson;
-            teacher = item.teacher !== null ? item.teacher : (document.getElementById('openingTeacher').value || 'Oktató neve');
-            
-            if (!item.positions) {
-                item.positions = JSON.parse(JSON.stringify(globalPositions));
-            }
-            positions = item.positions;
-        } else {
-            // Global mode
-            subject = document.getElementById('openingSubject').value || 'Tárgy címe';
-            lesson = document.getElementById('openingLesson').value || '[Lecke címe]';
-            teacher = document.getElementById('openingTeacher').value || 'Oktató neve';
-            positions = globalPositions;
-        }
+        subject = document.getElementById('openingSubject').value || 'Tárgy címe';
+        lesson = document.getElementById('openingLesson').value || '[Lecke címe]';
+        teacher = document.getElementById('openingTeacher').value || 'Oktató neve';
+        positions = globalPositions;
     } else {
         // Single mode
         subject = document.getElementById('openingSubject').value || 'Tárgy címe';
@@ -680,19 +657,20 @@ async function startProcessing() {
     if (selectedTheme === 'custom') {
         const iFile = document.getElementById('customIntroInput').files[0];
         const oFile = document.getElementById('customOutroInput').files[0];
+        // Egy elbukott feltöltés eddig csendben elnyelődött (`if (r.ok)`, else
+        // nélkül): a feldolgozás egyedi fájl nélkül indult, és a runner a GYÁRI
+        // intrót/outrót fűzte rá — a felhasználó csak a kész videón vette
+        // észre. Most megáll, és megmondja, mi nem ment fel. (Funkció-ellenőrzés, 5/12.)
         try {
-            if (iFile) {
-                const fd = new FormData(); fd.append('file', iFile);
-                const r = await fetch(`${IO_API}/upload-asset/${currentJobId}?type=intro`, {method:'POST', body:fd});
-                if(r.ok) { const d = await r.json(); customIntroRes = d.filename; }
-            }
-            if (oFile) {
-                const fd = new FormData(); fd.append('file', oFile);
-                const r = await fetch(`${IO_API}/upload-asset/${currentJobId}?type=outro`, {method:'POST', body:fd});
-                if(r.ok) { const d = await r.json(); customOutroRes = d.filename; }
-            }
-        } catch(e) {
-            console.error(e);
+            if (iFile) customIntroRes = await _uploadCustomAsset(iFile, 'intro');
+            if (oFile) customOutroRes = await _uploadCustomAsset(oFile, 'outro');
+        } catch (e) {
+            alert('Az egyedi ' + e.message);
+            btn.disabled = false;
+            btn.textContent = 'Feldolgozás indítása';
+            showSection('configSection');
+            setStep(2);
+            return;
         }
     }
     
@@ -739,6 +717,19 @@ async function startProcessing() {
     }
 }
 
+// Egyedi intro/outro feltöltése; hibánál dob (a hívó megáll, nem a gyári
+// fájllal fut tovább). A visszaadott fájlnevet a /process kapja meg.
+async function _uploadCustomAsset(file, type, jobId = currentJobId) {
+    const fd = new FormData();
+    fd.append('file', file);
+    const r = await fetch(`${IO_API}/upload-asset/${jobId}?type=${type}`, { method: 'POST', body: fd });
+    if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(`${type} feltöltése nem sikerült: ${err.detail || 'HTTP ' + r.status}`);
+    }
+    return (await r.json()).filename;
+}
+
 // Bulk: a batch listáról ?bulk=id1,id2,... -szel jött N db job → ugyanazt a
 // config-ot alkalmazzuk mindenre, enqueue-eljük, vissza a batch listára. A
 // per-job progress követés a batch lista pollingjával történik (5 s) — ezért
@@ -767,23 +758,23 @@ async function _startBulkProcessing() {
         const iFile = document.getElementById('customIntroInput')?.files?.[0];
         const oFile = document.getElementById('customOutroInput')?.files?.[0];
 
-        const uploadAsset = async (jid, file, type) => {
-            try {
-                const fd = new FormData(); fd.append('file', file);
-                const r = await fetch(`${IO_API}/upload-asset/${jid}?type=${type}`, { method:'POST', body:fd });
-                if (r.ok) { const d = await r.json(); return d.filename; }
-            } catch (e) {
-                console.warn('Custom asset upload failed for', jid, type, e);
-            }
-            return null;
-        };
-
+        // Egy elbukott feltöltés eddig csendben elnyelődött, és a fájlnév a
+        // SIKERES jobok alapján mindegyik jobra rákerült — a hibás jobnál a
+        // runner nem találta a fájlt, és a GYÁRI intrót fűzte rá. Most
+        // bármelyik hiba megállítja a tömeges indítást: egyetlen job sem
+        // indul félig beállítva. (Funkció-ellenőrzés, 5/12.)
         const assetJobs = [];
         for (const jid of _bulkJobIds) {
-            if (iFile) assetJobs.push(uploadAsset(jid, iFile, 'intro').then(n => { if (n) customIntroName = n; }));
-            if (oFile) assetJobs.push(uploadAsset(jid, oFile, 'outro').then(n => { if (n) customOutroName = n; }));
+            if (iFile) assetJobs.push(_uploadCustomAsset(iFile, 'intro', jid).then(n => { customIntroName = n; }));
+            if (oFile) assetJobs.push(_uploadCustomAsset(oFile, 'outro', jid).then(n => { customOutroName = n; }));
         }
-        if (assetJobs.length > 0) await Promise.allSettled(assetJobs);
+        const failed = (await Promise.allSettled(assetJobs)).filter(r => r.status === 'rejected');
+        if (failed.length > 0) {
+            alert(`Az egyedi ${failed[0].reason.message} (${failed.length} feltöltés hibás). A feldolgozás nem indult el.`);
+            btn.disabled = false;
+            btn.textContent = 'Feldolgozás indítása';
+            return;
+        }
     }
 
     const payload = {
@@ -846,10 +837,9 @@ async function startBatchProcessing() {
         const item = batchItems[i];
         _updateIoQueueRow(i, { state: 'running', label: 'Folyamatban', percent: 0 });
 
-        // Use item-specific data or fall back to global inputs
-        const finalSubject = item.subject !== null ? item.subject : (document.getElementById('openingSubject').value || '');
-        const finalTeacher = item.teacher !== null ? item.teacher : (document.getElementById('openingTeacher').value || '');
-        const finalPositions = item.positions || globalPositions;
+        const finalSubject = document.getElementById('openingSubject').value || '';
+        const finalTeacher = document.getElementById('openingTeacher').value || '';
+        const finalPositions = globalPositions;
 
         const payload = {
             language: selectedLang,
@@ -893,7 +883,6 @@ async function startBatchProcessing() {
             item.status = 'error';
             _updateIoQueueRow(i, { state: 'error', label: 'Hibás', error: err.message || 'Ismeretlen hiba' });
         }
-        renderBatchTable();
     }
 
     _updateIoBatchSummary(100, true);
@@ -912,20 +901,20 @@ function _renderIoBatchQueue(items) {
     })[c]));
     container.innerHTML = items.map((item, idx) => `
     <div class="batch-item status-queued" data-io-index="${idx}">
-        <div class="batch-info" style="flex:1;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                <h4 style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+        <div class="batch-info">
+            <div class="batch-row-head">
+                <h4 class="batch-title">
                     ${esc(item.file.name)}
-                    ${item.lesson ? `<span style="font-size:0.7rem; font-weight:400; background:rgba(245,158,11,0.15); color:#fcd34d; border:1px solid rgba(245,158,11,0.3); border-radius:4px; padding:1px 7px;">${esc(item.lesson)}</span>` : ''}
+                    ${item.lesson ? `<span class="badge badge-warning badge-soft">${esc(item.lesson)}</span>` : ''}
                 </h4>
             </div>
             <div class="batch-meta io-meta">Sorban áll</div>
-            <div class="io-progress" style="display:none; height:4px; width:100%; background:#333; margin-top:0.5rem; border-radius:2px;">
-                <div class="io-progress-fill" style="height:100%; width:0%; background:#6366f1; transition:width 0.3s;"></div>
+            <div class="io-progress batch-progress hidden">
+                <div class="io-progress-fill batch-progress-fill" style="width:0%"></div>
             </div>
-            <div class="io-error" style="display:none; color:#ef4444; font-size:0.8rem; margin-top:0.25rem;"></div>
+            <div class="io-error batch-note tone-danger is-sm hidden"></div>
         </div>
-        <div class="batch-actions io-badge" style="margin-left:1rem; font-size:1.5rem;">🕒</div>
+        <div class="batch-actions io-badge">🕒</div>
     </div>
     `).join('');
 }
@@ -949,23 +938,23 @@ function _updateIoQueueRow(idx, { state, label, percent, error }) {
     if (meta) meta.textContent = (state === 'running') ? `${label || 'Folyamatban'}: ${Math.round(percent || 0)}%` : (label || '');
 
     if (state === 'running') {
-        if (prog) prog.style.display = '';
+        if (prog) prog.classList.remove('hidden');
         if (fill) fill.style.width = `${Math.max(0, Math.min(100, percent || 0))}%`;
-        if (err) err.style.display = 'none';
+        if (err) err.classList.add('hidden');
         if (badge) badge.innerHTML = '<span class="spin">⏳</span>';
     } else if (state === 'done') {
-        if (prog) { prog.style.display = ''; }
-        if (fill) { fill.style.width = '100%'; fill.style.background = '#10b981'; }
-        if (err) err.style.display = 'none';
+        if (prog) prog.classList.remove('hidden');
+        if (fill) { fill.style.width = '100%'; fill.classList.add('is-done'); }
+        if (err) err.classList.add('hidden');
         if (badge) badge.textContent = '✅';
     } else if (state === 'error') {
-        if (prog) prog.style.display = 'none';
-        if (err) { err.style.display = ''; err.textContent = `❌ ${error || 'Ismeretlen hiba'}`; }
+        if (prog) prog.classList.add('hidden');
+        if (err) { err.classList.remove('hidden'); err.textContent = `❌ ${error || 'Ismeretlen hiba'}`; }
         if (badge) badge.textContent = '❌';
     } else {
         // queued
-        if (prog) prog.style.display = 'none';
-        if (err) err.style.display = 'none';
+        if (prog) prog.classList.add('hidden');
+        if (err) err.classList.add('hidden');
         if (badge) badge.textContent = '🕒';
     }
 }
@@ -1004,92 +993,6 @@ async function pollJobSync(jid, onProgress) {
     });
 }
 
-function renderBatchTable() {
-    const tbody = document.getElementById('batchTableBody');
-    if (!tbody) return;
-    tbody.innerHTML = '';
-    batchItems.forEach((item, index) => {
-        const tr = document.createElement('tr');
-        tr.style.borderBottom = '1px solid var(--border)';
-        if (index === currentBatchIndex) tr.style.background = 'rgba(99, 102, 241, 0.15)';
-        
-        const hasOverrides = (item.subject !== null || item.teacher !== null || item.positions !== null);
-        const overrideBadge = hasOverrides ? `<span style="background: var(--accent); color: white; border-radius: 4px; padding: 2px 6px; font-size: 0.65rem; margin-top: 4px; display: inline-block;">Egyedi</span>` : '';
-
-        tr.innerHTML = `
-            <td style="padding: 12px; color: var(--text-secondary); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.file.name}</td>
-            <td style="padding: 12px;">
-                <textarea class="settings-input" style="width: 100%; height: 40px; font-size: 0.8rem; padding: 4px;" 
-                    oninput="updateBatchLesson(${index}, this.value)">${item.lesson}</textarea>
-                ${overrideBadge}
-            </td>
-            <td style="padding: 12px; text-align: center;">
-                <button class="btn ${index === currentBatchIndex ? 'btn-accent' : 'btn-secondary'}" style="padding: 4px 8px; font-size: 0.7rem;" onclick="editBatchItem(${index})">
-                    <i class="${index === currentBatchIndex ? 'fas fa-check' : 'far fa-eye'}"></i>
-                    ${index === currentBatchIndex ? 'Kész' : 'Szerkeszt'}
-                </button>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-window.updateBatchLesson = function(index, value) {
-    if (batchItems[index]) {
-        batchItems[index].lesson = value;
-        if (index === currentBatchIndex) {
-            const mainInput = document.getElementById('openingLesson');
-            if (mainInput) mainInput.value = value;
-            updatePreviewText('table');
-        }
-    }
-};
-
-window.editBatchItem = function(index) {
-    const titleEl = document.getElementById('inputGroupTitle');
-    const lessonInput = document.getElementById('openingLesson');
-    const subjectInput = document.getElementById('openingSubject');
-    const teacherInput = document.getElementById('openingTeacher');
-
-    if (currentBatchIndex === index) {
-        currentBatchIndex = -1;
-        if (titleEl) titleEl.innerText = 'Globális adatok';
-    } else {
-        currentBatchIndex = index;
-        const item = batchItems[index];
-        if (titleEl) titleEl.innerText = `Egyedi adatok (${item.file.name})`;
-        
-        // Load item data into inputs
-        if (lessonInput) lessonInput.value = item.lesson;
-        if (subjectInput) subjectInput.value = item.subject !== null ? item.subject : '';
-        if (teacherInput) teacherInput.value = item.teacher !== null ? item.teacher : '';
-    }
-    
-    const note = document.getElementById('itemOverrideNote');
-    if (note) note.classList.toggle('hidden', currentBatchIndex < 0);
-    
-    renderBatchTable();
-    updatePreviewText();
-};
-
-window.finishItemEdit = function() {
-    currentBatchIndex = -1;
-    const titleEl = document.getElementById('inputGroupTitle');
-    if (titleEl) titleEl.innerText = 'Globális adatok';
-    
-    const note = document.getElementById('itemOverrideNote');
-    if (note) note.classList.add('hidden');
-    renderBatchTable();
-    updatePreviewText();
-};
-
-window.resetToGlobal = function() {
-    if (currentBatchIndex >= 0) {
-        batchItems[currentBatchIndex].positions = null;
-        updatePreviewText();
-    }
-};
-
 function renderBatchDownloadList() {
     const container = document.getElementById('downloadSection');
     let listDiv = document.getElementById('batchDownloadList');
@@ -1100,29 +1003,23 @@ function renderBatchDownloadList() {
         container.appendChild(listDiv);
     }
     
-    listDiv.innerHTML = '<h3 style="margin-bottom:16px;">✨ Eredmények:</h3>';
+    listDiv.innerHTML = '<h3 class="mb-4">✨ Eredmények:</h3>';
     
     batchItems.forEach((item, index) => {
         const d = document.createElement('div');
-        d.className = 'card';
-        d.style.marginBottom = '8px';
-        d.style.display = 'flex';
-        d.style.justifyContent = 'space-between';
-        d.style.alignItems = 'center';
-        d.style.padding = '12px';
-        d.style.background = 'var(--bg-card)';
-        
+        d.className = 'card result-card';
+
         if (item.status === 'error') {
-            d.style.borderLeft = '4px solid #ef4444';
+            d.classList.add('is-error');
             d.innerHTML = `
-                <span style="font-size:0.9rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-right:12px; color:#ef4444;">❌ ${item.file.name} (Hiba)</span>
-                <button onclick="retryBatchItem(${index})" class="btn btn-secondary" style="padding: 6px 16px; font-size:0.8rem; border-color:#ef4444; color:#ef4444;">🔄 Újra</button>
+                <span class="truncate text-danger">❌ ${item.file.name} (Hiba)</span>
+                <button onclick="retryBatchItem(${index})" class="btn btn-secondary btn-sm btn-danger-quiet">🔄 Újra</button>
             `;
         } else {
-            d.style.borderLeft = '4px solid #10b981';
+            d.classList.add('is-done');
             d.innerHTML = `
-                <span style="font-size:0.9rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-right:12px;">✅ ${item.file.name}</span>
-                <button onclick="downloadBatchItem('${item.jobId}', '${item.file.name}')" class="btn btn-primary" style="padding: 6px 16px; font-size:0.8rem;">Letöltés</button>
+                <span class="truncate">✅ ${esc(item.file.name)}</span>
+                <button onclick="downloadBatchItem(${esc(JSON.stringify(String(item.jobId)))}, ${esc(JSON.stringify(item.file.name))})" class="btn btn-primary btn-sm">Letöltés</button>
             `;
         }
         listDiv.appendChild(d);
@@ -1151,7 +1048,7 @@ async function retryBatchItem(index) {
     
     const d = document.querySelectorAll('#batchDownloadList .card')[index];
     if (d) {
-        d.innerHTML = `<span style="font-size:0.9rem; color:var(--text-secondary);">⌛ ${item.file.name} újraindítása...</span>`;
+        d.innerHTML = `<span class="text-sm text-secondary">⌛ ${item.file.name} újraindítása...</span>`;
     }
     
     try {
@@ -1272,9 +1169,9 @@ function updateStatusUI(status) {
             ? formatEtaHtml(status.created_at, status.progress)
             : '';
         const text = status.detail || 'Feldolgozás...';
-        // innerHTML, hogy az etaHtml-renderelődjön; a status.detail backend-stamp,
-        // nem user-input, ezért XSS-mentes (backend literál).
-        detail.innerHTML = text + etaHtml;
+        // innerHTML, hogy az etaHtml renderelődjön — a szöveg maga esc()-kel:
+        // a detail ma backend-literál, de ugyanez a mező hordhat hibaszöveget is.
+        detail.innerHTML = esc(text) + etaHtml;
     }
 }
 
@@ -1288,30 +1185,25 @@ function showErrorActions(status) {
 
     const panel = document.createElement('div');
     panel.id = 'errorActionPanel';
-    panel.style.cssText = [
-        'margin-top:24px',
-        'padding:20px',
-        'background:rgba(239,68,68,0.08)',
-        'border:1px solid rgba(239,68,68,0.35)',
-        'border-radius:12px',
-        'display:flex',
-        'flex-direction:column',
-        'gap:12px',
-    ].join(';');
+    // a design-rendszer hibapanelje, oszlopos változatban (tokenekből; eddig
+    // style.cssText, beégetett színekkel — UI-35)
+    panel.className = 'error-panel is-stacked';
 
+    // esc(): az error_detail az ffmpeg stderr végét is hordhatja, abban pedig
+    // a drawtext argumentumait — vagyis a felhasználó nyitókép-szövegét.
     const errMsg = status.error_detail || status.detail || 'Ismeretlen hiba';
     panel.innerHTML = `
-        <div style="color:#ef4444; font-weight:600; font-size:0.95rem;">⚠️ Feldolgozási hiba</div>
-        <div style="font-size:0.85rem; color:var(--text-secondary); word-break:break-word;">${errMsg}</div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn btn-accent" id="retryBtn" onclick="retryJob()" style="flex:1; min-width:140px;">
+        <div class="text-lg text-danger font-semibold">⚠️ Feldolgozási hiba</div>
+        <div class="text-sm text-secondary break-word">${esc(errMsg)}</div>
+        <div class="row">
+            <button class="btn btn-accent grow-140" id="retryBtn" onclick="retryJob()">
                 🔄 Újra feldolgozás
             </button>
-            <button class="btn btn-secondary" id="deleteJobBtn" onclick="deleteCurrentJob()" style="flex:1; min-width:140px; border-color:rgba(239,68,68,0.5); color:#ef4444;">
+            <button class="btn btn-secondary grow-140 btn-danger-quiet" id="deleteJobBtn" onclick="deleteCurrentJob()">
                 🗑️ Törlés
             </button>
         </div>
-        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">
+        <div class="text-xs text-secondary mt-1">
             Az <strong>Újra feldolgozás</strong> az eredeti videót az utolsó beállításokkal dolgozza fel újra.<br>
             A <strong>Törlés</strong> teljesen eltávolítja a job-ot és az összes fájlt.
         </div>
@@ -1398,7 +1290,7 @@ function setStep(n) {
 function saveJobToHistory(jobId, name) {
     const history = JSON.parse(localStorage.getItem('introOutroJobs') || '[]');
     if (!history.find(j => j.id === jobId)) {
-        history.unshift({ id: jobId, name, date: new Date().toISOString() });
+        history.unshift({ id: jobId, name, date: new Date().toISOString(), ws: (typeof currentWorkspaceLabel === 'function' ? currentWorkspaceLabel() : null) });   // ws: TD-027
         if (history.length > 20) history.pop();
         localStorage.setItem('introOutroJobs', JSON.stringify(history));
     }
@@ -1432,11 +1324,11 @@ function _fmtJobDate(isoDate) {
 async function renderHistory() {
     const container = document.getElementById('jobHistory');
     const history = JSON.parse(localStorage.getItem('introOutroJobs') || '[]');
-    const filtered = history.filter(job => _matchHistoryDate(job.date));
+    const filtered = history.filter(job => _matchHistoryDate(job.date) && (typeof isInCurrentWorkspace !== 'function' || isInCurrentWorkspace(job.ws)));
     if (filtered.length === 0) {
         const msg = historyDateFilter === 'all' ? 'Nincs korábbi feladat'
             : (historyDateFilter === 'today' ? 'Ma még nincs feltöltés.' : 'Tegnap nincs feltöltés.');
-        container.innerHTML = `<div style="padding:20px;color:#555;font-size:0.85rem;">${msg}</div>`;
+        container.innerHTML = `<div class="empty-history">${msg}</div>`;
         return;
     }
     // Render immediately with any cached _stage, then enrich from server
@@ -1447,19 +1339,19 @@ async function renderHistory() {
 
 function _renderHistoryItems(container, items) {
     container.innerHTML = items.map(job => {
-        const stageCls = job._stage === 'error' ? ' style="border-left:3px solid #ef4444;"' : (job._stage === 'done' ? ' style="border-left:3px solid #10b981;"' : '');
+        const stageCls = job._stage === 'error' ? ' stage-error' : (job._stage === 'done' ? ' stage-done' : '');
         const retryBtn = (job._stage === 'error' || job._stage === 'done')
-            ? `<button onclick="retryJobFromHistory('${job.id}', event)" class="btn btn-secondary" style="padding:4px 8px; font-size:0.75rem; border-radius:4px; margin-right:2px;" title="Újra feldolgozás">🔄</button>`
+            ? `<button onclick="retryJobFromHistory('${job.id}', event)" class="btn btn-secondary btn-xs" title="Újra feldolgozás">🔄</button>`
             : '';
         return `
-        <div class="job-item${job.id === currentJobId ? ' active' : ''}" onclick="loadJob('${esc(job.id)}', ${esc(JSON.stringify(job.name))})"${stageCls} style="display:flex; justify-content:space-between; align-items:center;">
-            <div class="job-info" style="flex:1; overflow:hidden;">
-                <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(job.name)}</div>
+        <div class="job-item${job.id === currentJobId ? ' active' : ''} row-between${stageCls}" onclick="loadJob('${esc(job.id)}', ${esc(JSON.stringify(job.name))})">
+            <div class="job-info grow">
+                <div class="truncate">${esc(job.name)}</div>
                 <div class="job-date">🕐 ${_fmtJobDate(job.date)}</div>
             </div>
-            <div style="display:flex;gap:2px;flex-shrink:0;">
+            <div class="row-actions">
                 ${retryBtn}
-                <button onclick="deleteJob('${job.id}', event)" class="btn btn-secondary" style="padding:4px 8px; font-size:0.8rem; border-radius:4px;" title="Törlés">❌</button>
+                <button onclick="deleteJob('${job.id}', event)" class="btn btn-secondary btn-xs" title="Törlés">❌</button>
             </div>
         </div>`;
     }).join('');

@@ -9,10 +9,12 @@
     <meta name="apple-mobile-web-app-title" content="EDTI Studio">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon.svg">
-    <meta http-equiv="refresh" content="0; url=/course.html">
+    <meta http-equiv="refresh" content="0; url=course.html">
     <title>EDTI Stúdió — Átirányítás</title>
-    <link rel="stylesheet" href="style.css?v=3">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=b2484b1bda">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="mock_core.js"></script>
 <script src="mock_routes_core.js"></script>
 <script src="mock_routes_batch.js"></script>
@@ -20,7 +22,23 @@
 <script src="mock_routes_flow.js"></script>
 <script src="mock_routes_subtitle.js"></script>
 <script src="mock_routes_misc.js"></script>
+<script src="mock_routes_extra.js"></script>
 <script>
+        // A tokenek csak akkor jelentenek bármit, ha a data-theme be van
+        // állítva. Ez a csonk SZÁNDÉKOSAN nem tölti be a shared.js-t —
+        // egy azonnal átirányító lapra a monitor- és munkaterület-kezelés
+        // fölösleges teher —, ezért a döntési szabály itt, a lehető
+        // legszűkebben szerepel: mentett választás, különben a rendszeré.
+        // Ugyanaz a sorrend, mint a shared.js getTheme()-jében.
+        try {
+            var _t = localStorage.getItem('edti_theme');
+            if (!_t) _t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+            if (_t === 'light') {
+                document.documentElement.setAttribute('data-theme', 'light');
+                document.querySelector('meta[name="theme-color"]').setAttribute('content', '#f5f7fa');
+            }
+        } catch (_) { /* privát mód: marad a sötét alapértelmezés */ }
+
         window.location.replace('course.html');
     </script>
     <style>
@@ -31,18 +49,18 @@
             min-height: 100vh;
             margin: 0;
             font-family: 'Outfit', sans-serif;
-            background: radial-gradient(circle at top right, #1e1b4b, #0b0e14 40%);
-            color: #94a3b8;
+            background: radial-gradient(circle at top right, var(--bg-glow), var(--surface-page) 40%);
+            color: var(--text-secondary);
         }
 
         a {
-            color: #818cf8;
+            color: var(--accent-text);
             text-decoration: none;
         }
     </style>
 </head>
 <body>
-    <div style="text-align:center;">
+    <div class="text-center">
         <p>Átirányítás az Intelligens Tallózás oldalra...</p>
         <p><a href="course.html">Megnyitás</a></p>
     </div>

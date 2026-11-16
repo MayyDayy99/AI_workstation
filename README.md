@@ -25,6 +25,8 @@ happens.
 | 📊 **PPT csere** | Videóban rögzített diák lecserélése éles PPT-exportra |
 | 🎞️ **Intro/Outro** | Egységes nyitó-/záróképsorok |
 | 🧩 **Flow builder** | Feldolgozási lépések vizuális láncolása |
+| 🔄 **Fájlkonvertáló** | Dokumentum, kép, hang, videó és felirat átalakítása; HTML/ZIP → MP4 videó (oldalfelvétel vagy HyperFrames-kompozíció, GPU-s kódolással) |
+| 🗂️ **Intelligens tallózás** | Teljes kurzus (mappa vagy ZIP) feldolgozása egyben, ugyanabban a szerkezetben vissza |
 | 📦 **Batch** | Tömeges feldolgozás sorbaállítással, prioritásokkal |
 
 ## A demó használata / Using the demo
@@ -41,8 +43,28 @@ happens.
 - `mock_core.js` — fetch/XHR/EventSource elfogás, idő-alapú determinisztikus
   job-szimulátor, szerverterhelés-hullámok, demo-session
 - `mock_routes_*.js` — az egyes modulok API-kontraktusának mockjai
+  (`mock_routes_extra.js`: Fájlkonvertáló, kapcsolódó szolgáltatások csempéi,
+  sor elejére vétel, köztes fájlok takarítása). A darabolt feltöltés
+  (`/api/batch/upload/*`) a `purpose` szerint a modul saját feltöltő-route-ját
+  hívja, mint a valódi backend.
+- Hibakereséshez: `localStorage.MOCK_DEBUG = '1'` → minden elfogott API-hívás
+  a konzolra kerül; a route nélküli hívás mindig `[MOCK] nincs route` figyelmeztetést ad.
 - `api/…` — valódi statikus fájlok a médiának (előnézet, letöltések), mert
   a `<video>`/`<a download>` navigációkat nem lehet JS-ből elfogni
+
+## A felület frissítése az éles rendszerből
+
+A HTML/JS/CSS az éles stúdió `frontend/static` mappájának másolata, a demó
+szabályaival (relatív útvonalak, a mock-scriptek az első scriptek között,
+kikapcsolt service worker). Frissítés egy paranccsal:
+
+```
+python3 tools/sync_frontend.py <az éles repó>/frontend/static
+```
+
+Ha közben új API-hívás került a felületre, a böngésző konzolján `[MOCK] nincs route`
+jelzi — ilyenkor a megfelelő `mock_routes_*.js` bővítendő, és ha a hívás
+navigáció (letöltés, `<video src>`), az `api/…` alá statikus fájl kell.
 
 > Az éles rendszer forráskódja külön, privát repóban él. Ez a demó kizárólag
 > a felhasználói felület bemutatására szolgál.

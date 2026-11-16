@@ -144,8 +144,24 @@
     // és 60%-nál megáll (edit_ready), amíg a Generate el nem indítja
     // a 2. fázist. Minden más purpose: sima, végigfutó dub-job.
     function createUploadJob(filename, mode, purpose) {
+        const single = purpose === 'dub_single';
+        // Batch-feltöltés (purpose nélkül): a job azonnal sorba áll, és a batch-lap
+        // módja szerinti típust kap — a felirat/leirat batch a saját id-poolját, hogy
+        // a letöltő linkek statikus fájljai (api/download/demo-sub|tr-live-N/…) létezzenek.
+        if (!single && (mode === 'subtitles_only' || mode === 'transcript_only')) {
+            const sub = mode === 'subtitles_only';
+            const key = sub ? 'batchSubPool' : 'batchTrPool';
+            CORE[key] = (CORE[key] || 0) + 1;
+            const pid = (sub ? 'demo-sub-live-' : 'demo-tr-live-') + (((CORE[key] - 1) % 3) + 1);
+            if (M.sim.get(pid)) M.sim.remove(pid);
+            const bj = M.sim.create(sub ? 'subtitle' : 'transcribe', {
+                id: pid, filename: filename || 'demo_video.mp4', mode: mode,
+                durationSec: 25 + Math.floor(Math.random() * 15), autostart: true,
+            });
+            M.save();
+            return bj;
+        }
         const id = nextPoolId();
-        const single = !purpose || purpose === 'dub_single';
         const job = M.sim.create('dub', {
             id: id,
             filename: filename || 'demo_video.mp4',
@@ -209,13 +225,35 @@
 
     // FINALIZE — a dub_single flow-nak KÖTELEZŐ a job_id, különben az
     // app.js "nem adott vissza job-azonosítót" hibát ír ki.
-    M.route('POST', 'api/batch/upload/finalize', (m, req) => {
+    M.route('POST', 'api/batch/upload/finalize', async (m, req) => {
         const uploadId = req.query.get('upload_id') || '';
         const up = CORE.uploads[uploadId] || { filename: 'demo_video.mp4', mode: 'dub_full', purpose: 'dub_single' };
         delete CORE.uploads[uploadId];
+        M.save();
+        // A darabolt feltöltés célja (purpose) dönti el, milyen job születik — a valódi
+        // backendben is (upload_chunked.py). A modulok saját upload-route-ját hívjuk,
+        // így a job ugyanaz, mintha a régi, egyben feltöltős végpontra jött volna.
+        const fd = new FormData();
+        fd.append('file', new File([new Blob(['demo'])], up.filename || 'demo_video.mp4'));
+        if (up.mode) fd.append('mode', up.mode);
+        const viaRoute = async (url) => {
+            const r = await M.call('POST', url, fd);
+            return r.json();
+        };
+        const p = up.purpose || '';
+        if (p === 'intro_outro') { const j = await viaRoute('api/intro_outro/upload'); return { job_id: j.job_id, status: 'uploaded' }; }
+        if (p === 'ppt_narrate') { const j = await viaRoute('api/ppt_narrate/upload'); return { job_id: j.job_id, status: 'uploaded' }; }
+        if (p === 'ppt_replace') { const j = await viaRoute('api/ppt_replace/upload'); return { job_id: j.job_id, status: 'uploaded' }; }
+        if (p === 'convert') { const j = await viaRoute('api/convert/__upload'); return { job_id: j.job_id, status: 'uploaded' }; }
+        if (p === 'course_zip') { return viaRoute('api/course/upload?mode=' + encodeURIComponent(up.mode || 'dub_full')); }
+        if (p === 'dub_single' && (up.mode === 'subtitles_only' || up.mode === 'transcript_only')) {
+            const j = await viaRoute('api/upload?mode=' + encodeURIComponent(up.mode));
+            return { job_id: j.job_id, status: 'uploaded' };
+        }
         const job = createUploadJob(up.filename, up.mode, up.purpose);
         CORE.itemSeq += 1;
         M.save();
+        if (p === 'dub_single') return { job_id: job.id, status: 'uploaded' };
         return {
             id: CORE.itemSeq,
             job_id: job.id,
@@ -224,12 +262,21 @@
         };
     });
 
+    // A megszakadt feltöltés folytatása (upload_queue.js): a demó nem őriz félkész
+    // feltöltést, ezért mindig újrakezdést kér — csendben, route-hiba nélkül.
+    M.route('GET', 'api/batch/upload/status/([^/]+)', () => M.resp(404, { detail: 'Nincs folytatható feltöltés (demo).' }));
+
     /* ============================================================
      * 2) FALLBACK FELTÖLTÉS + HANGMINTA
      * ========================================================== */
 
     // Egyszeri multipart POST (ha az UploadQueue nem töltődött be).
     M.route('POST', 'api/upload', (m, req) => {
+        const mode = req.query.get('mode') || (req.form && req.form.get('mode')) || 'dub_full';
+        if (mode === 'subtitles_only' || mode === 'transcript_only') {
+            return M.call('POST', 'api/upload/__modes?mode=' + encodeURIComponent(mode), req.form)
+                .then(r => r.json());
+        }
         let name = 'demo_video.mp4';
         try {
             const f = req.form && req.form.get('file');
@@ -297,7 +344,12 @@
     // STATUS — a 2 mp-es poll. MINDIG JSON-t kell adnia (a kliens nem
     // nézi a res.ok-ot); a MOCK.sim._wrap pontosan a várt mezőket adja:
     // stage / progress / detail / job_mode / error (+ id, created_at…).
-    M.route('GET', 'api/status/([^/]+)', (m) => M.sim.status(m[1]));
+    // A sorban álló job a helyét is megkapja (adminnak „⚡ Sor elejére" gomb jár hozzá).
+    M.route('GET', 'api/status/([^/]+)', (m) => {
+        const st = M.sim.status(m[1]);
+        if (st.stage === 'queued') st.queue_position = (M.sim.get(m[1]) || {}).bumped ? 1 : 2;
+        return st;
+    });
 
     // JOB GET — a szerkesztő szegmensei. start/end SZÁM (toFixed hívódik rá!).
     M.route('GET', 'api/job/([^/]+)', (m) => {

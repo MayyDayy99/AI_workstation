@@ -72,28 +72,28 @@
     function _buildModal() {
         const root = document.createElement('div');
         root.id = '_voicePickerModal';
-        root.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);display:none;align-items:center;justify-content:center;z-index:10000;';
+        root.className = 'vp-modal';
         root.innerHTML = `
-            <div style="background:#1a1a2e;border:1px solid #374151;border-radius:12px;padding:24px;max-width:480px;width:90%;color:#e5e7eb;">
-                <h3 style="margin:0 0 14px;">🗣️ Új hangminta feltöltése</h3>
-                <p style="font-size:0.85rem;color:#9ca3af;margin:0 0 14px;">Az XTTS klónozza a hangszínt. Tölthetsz fel <strong>audiót</strong> (5-30 mp ideális) vagy egy <strong>egész videót</strong> — a szerver csend-kiszedéssel ~30 mp tiszta beszéd-mintát csinál belőle.</p>
-                <label style="display:block;font-size:0.8rem;color:#9ca3af;margin-bottom:4px;">Megjelenítendő név</label>
-                <input id="_vpDisplayName" type="text" placeholder="pl. Anna tanárnő" style="width:100%;padding:8px;border:1px solid #374151;background:#0f172a;color:#e5e7eb;border-radius:6px;margin-bottom:12px;">
-                <label style="display:block;font-size:0.8rem;color:#9ca3af;margin-bottom:4px;">Nyelvi jelölés (opcionális)</label>
-                <select id="_vpLanguageHint" style="width:100%;padding:8px;border:1px solid #374151;background:#0f172a;color:#e5e7eb;border-radius:6px;margin-bottom:12px;">
+            <div class="vp-box">
+                <h3>🗣️ Új hangminta feltöltése</h3>
+                <p class="vp-lead">Az XTTS klónozza a hangszínt. Tölthetsz fel <strong>audiót</strong> (5-30 mp ideális) vagy egy <strong>egész videót</strong> — a szerver csend-kiszedéssel ~30 mp tiszta beszéd-mintát csinál belőle.</p>
+                <label class="vp-label">Megjelenítendő név</label>
+                <input id="_vpDisplayName" type="text" placeholder="pl. Anna tanárnő" class="vp-field">
+                <label class="vp-label">Nyelvi jelölés (opcionális)</label>
+                <select id="_vpLanguageHint" class="vp-field">
                     <option value="">— Bármilyen —</option>
                     <option value="hu">🇭🇺 Magyar</option>
                     <option value="en">🇬🇧 English</option>
                 </select>
-                <label style="display:block;font-size:0.8rem;color:#9ca3af;margin-bottom:4px;">Audió vagy videó fájl</label>
-                <input id="_vpFile" type="file" accept=".wav,.mp3,.m4a,.ogg,.flac,.opus,.mp4,.mov,.mkv,.avi,.webm" style="width:100%;padding:8px;border:1px dashed #374151;background:#0f172a;color:#e5e7eb;border-radius:6px;margin-bottom:8px;">
-                <div style="font-size:0.72rem;color:#6b7280;margin-bottom:14px;">Engedélyezett: wav, mp3, m4a, ogg, flac, opus · mp4, mov, mkv, avi, webm</div>
-                <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:#e5e7eb;margin-bottom:14px;cursor:pointer;user-select:none;">
-                    <input id="_vpTrimSilence" type="checkbox" checked style="width:16px;height:16px;cursor:pointer;">
+                <label class="vp-label">Audió vagy videó fájl</label>
+                <input id="_vpFile" type="file" accept=".wav,.mp3,.m4a,.ogg,.flac,.opus,.mp4,.mov,.mkv,.f4v,.avi,.webm" class="vp-field is-file">
+                <div class="vp-hint">Engedélyezett: wav, mp3, m4a, ogg, flac, opus · mp4, mov, mkv, f4v, avi, webm</div>
+                <label class="vp-check">
+                    <input id="_vpTrimSilence" type="checkbox" checked>
                     <span>Csend-kiszedés (ajánlott) — kihagyja a kezdő csendet és a hosszú szüneteket</span>
                 </label>
-                <div id="_vpStatus" style="font-size:0.85rem;color:#9ca3af;min-height:1.2em;margin-bottom:12px;"></div>
-                <div style="display:flex;gap:8px;justify-content:flex-end;">
+                <div id="_vpStatus" class="vp-status"></div>
+                <div class="vp-actions">
                     <button type="button" id="_vpCancel" class="btn btn-secondary">Mégse</button>
                     <button type="button" id="_vpSubmit" class="btn btn-accent">Feltöltés</button>
                 </div>
@@ -117,12 +117,12 @@
         m.querySelector('#_vpLanguageHint').value = '';
         m.querySelector('#_vpFile').value = '';
         m.querySelector('#_vpStatus').textContent = '';
-        m.style.display = 'flex';
+        m.classList.add('is-open');
         setTimeout(() => m.querySelector('#_vpDisplayName').focus(), 50);
     }
 
     function closeUploadModal() {
-        if (_modalRoot) _modalRoot.style.display = 'none';
+        if (_modalRoot) _modalRoot.classList.remove('is-open');
     }
 
     async function _submitUpload() {
@@ -135,8 +135,8 @@
         const submitBtn = m.querySelector('#_vpSubmit');
         const name = (nameEl.value || '').trim();
         const file = fileEl.files[0];
-        if (!name) { statusEl.textContent = '⚠️ Adj meg egy nevet.'; statusEl.style.color = '#f59e0b'; return; }
-        if (!file) { statusEl.textContent = '⚠️ Válassz audió vagy videó fájlt.'; statusEl.style.color = '#f59e0b'; return; }
+        if (!name) { statusEl.textContent = '⚠️ Adj meg egy nevet.'; statusEl.style.color = 'var(--warning-text)'; return; }
+        if (!file) { statusEl.textContent = '⚠️ Válassz audió vagy videó fájlt.'; statusEl.style.color = 'var(--warning-text)'; return; }
 
         const fd = new FormData();
         fd.append('file', file);
@@ -145,7 +145,7 @@
         fd.append('trim_silence', trimEl.checked ? 'true' : 'false');
 
         submitBtn.disabled = true;
-        statusEl.style.color = '#9ca3af';
+        statusEl.style.color = 'var(--text-secondary)';
         const msg = trimEl.checked
             ? 'Feltöltés · csend-kiszedés · 24 kHz mono WAV…'
             : 'Feltöltés és normalizálás (24 kHz mono WAV)…';
@@ -158,13 +158,13 @@
                 throw new Error(body.detail || `HTTP ${res.status}`);
             }
             const data = await res.json();
-            statusEl.style.color = '#10b981';
+            statusEl.style.color = 'var(--success-text)';
             statusEl.textContent = `✓ Kész: ${data.display_name}`;
             // Notify listeners (single + batch oldalak refresh-elhetik a dropdown-t).
             document.dispatchEvent(new CustomEvent('voiceLibraryChanged', { detail: data }));
             setTimeout(closeUploadModal, 700);
         } catch (e) {
-            statusEl.style.color = '#ef4444';
+            statusEl.style.color = 'var(--danger-text)';
             statusEl.textContent = '❌ ' + (e.message || e);
         } finally {
             submitBtn.disabled = false;

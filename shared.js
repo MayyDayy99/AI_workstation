@@ -2,13 +2,147 @@
 const API_URL = 'api';
 
 // ============================================================
+// TÉMA (sötét / világos)
+// ------------------------------------------------------------
+// A sötét az alap; a világosat a <html data-theme="light"> kapcsolja be,
+// és a style.css-ben EGYETLEN token-blokk fordítja át. Azért attribútum és
+// nem @media (prefers-color-scheme), mert a media-query + attribútum kettőse
+// duplikálná az egész palettát — a rendszer-preferenciát itt olvassuk ki, egy
+// helyen.
+//
+// A shared.js a <head>-ben, a <body> ELŐTT fut le minden lapon, ezért a téma
+// az első festés előtt beáll: nincs villanás.
+// ============================================================
+const THEME_KEY = 'edti_theme';
+
+function _systemPrefersLight() {
+    try { return window.matchMedia('(prefers-color-scheme: light)').matches; } catch (_) { return false; }
+}
+
+function getTheme() {
+    let saved = null;
+    try { saved = localStorage.getItem(THEME_KEY); } catch (_) { /* privát mód */ }
+    if (saved === 'light' || saved === 'dark') return saved;
+    return _systemPrefersLight() ? 'light' : 'dark';
+}
+
+function applyTheme(theme) {
+    const root = document.documentElement;
+    if (theme === 'light') root.setAttribute('data-theme', 'light');
+    else root.removeAttribute('data-theme');
+    // A böngésző UI-ja (mobil címsor) is kövesse.
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', theme === 'light' ? '#f5f7fa' : '#0e0e1a');
+    const btn = document.getElementById('themeToggle');
+    if (btn) {
+        const toLight = theme !== 'light';
+        btn.textContent = toLight ? '☀️' : '🌙';
+        const label = toLight ? 'Világos témára váltás' : 'Sötét témára váltás';
+        btn.title = label;
+        btn.setAttribute('aria-label', label);
+    }
+}
+
+function setTheme(theme) {
+    try { localStorage.setItem(THEME_KEY, theme); } catch (_) { /* privát mód */ }
+    applyTheme(theme);
+}
+
+function toggleTheme() {
+    setTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
+}
+window.toggleTheme = toggleTheme;
+
+// AZONNAL alkalmazzuk — még a <body> megnyitása előtt, hogy ne villanjon.
+applyTheme(getTheme());
+
+// A rendszer-beállítás követése, amíg a felhasználó nem választott kézzel.
+try {
+    window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => {
+        let saved = null;
+        try { saved = localStorage.getItem(THEME_KEY); } catch (_) {}
+        if (!saved) applyTheme(e.matches ? 'light' : 'dark');
+    });
+} catch (_) { /* régi böngésző */ }
+
+// A váltógomb minden lapra magától kerül ki — nincs közös fejléc-komponens,
+// amibe be lehetne tenni, és 19 lapot kézzel bővíteni pont az a duplikáció
+// lenne, ami ellen ez az egész munka szól.
+function _mountThemeToggle() {
+    if (document.getElementById('themeToggle')) return;
+    const btn = document.createElement('button');
+    btn.id = 'themeToggle';
+    btn.type = 'button';
+    btn.className = 'theme-toggle';
+    btn.addEventListener('click', toggleTheme);
+    document.body.appendChild(btn);
+    applyTheme(getTheme());
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _mountThemeToggle);
+} else {
+    _mountThemeToggle();
+}
+
+// ============================================================
 // AUTH HELPER - Redirect to login on 401
 // ============================================================
+// ============================================================
+// EL NEM MENTETT SZERKESZTÉSEK (UI-18)
+// ============================================================
+// A szinkron- és a felirat-szerkesztő a KÉPERNYŐN tartja a módosítást, a
+// backend viszont a MENTETT segments.json-ből exportál és generál. Ebből három
+// hiba fakadt, mind mérve: (1) a mentés hibánál is sikert jelzett; (2) 401-nél
+// az alábbi csomagoló azonnal a belépő lapra navigált, a szerkesztéssel
+// együtt; (3) az export és a generálás mentés nélkül a javítatlan szövegből
+// dolgozott. A szerkesztők a `markUnsaved()`-dal jelzik a módosítást.
+const _unsaved = { dirty: false };
+function markUnsaved(dirty = true) {
+    _unsaved.dirty = !!dirty;
+    if (!_unsaved.dirty) _clearSessionExpiredNotice();
+}
+function hasUnsavedChanges() { return _unsaved.dirty; }
+
+// Bezárás, frissítés, elnavigálás mentetlen módosítással: a böngésző kérdez.
+window.addEventListener('beforeunload', (e) => {
+    if (!_unsaved.dirty) return;
+    e.preventDefault();
+    e.returnValue = '';
+});
+
+// Tartós (nem eltűnő) figyelmeztetés a toast-konténerben. A süti a lapok
+// között közös: egy új lapon belépve ezen a lapon a következő mentés sikerül.
+function _showSessionExpiredNotice() {
+    if (document.getElementById('_sessionExpired')) return;
+    const c = _ensureToastContainer();
+    const el = document.createElement('div');
+    el.id = '_sessionExpired';
+    el.className = 'toast';
+    el.setAttribute('data-kind', 'warning');
+    el.setAttribute('role', 'alert');
+    const strong = document.createElement('strong');
+    strong.textContent = 'A munkamenet lejárt — a szerkesztésed még nincs mentve.';
+    const p = document.createElement('div');
+    p.append('Ne zárd be ezt a lapot. ');
+    const a = document.createElement('a');
+    a.href = 'login.html'; a.target = '_blank'; a.rel = 'noopener';
+    a.textContent = 'Jelentkezz be egy új lapon';
+    p.append(a, ', aztán mentsd újra itt.');
+    el.append(strong, p);
+    c.appendChild(el);
+}
+function _clearSessionExpiredNotice() {
+    const el = document.getElementById('_sessionExpired');
+    if (el) el.remove();
+}
+
 const _origFetch = window.fetch.bind(window);
 window.fetch = async function(...args) {
     const resp = await _origFetch(...args);
     if (resp.status === 401 && !String(args[0]).includes('api/login') && !String(args[0]).includes('api/me')) {
-        window.location.href = 'login.html';
+        // Mentetlen szerkesztéssel NEM navigálunk el: az elvinné a munkát.
+        if (_unsaved.dirty) _showSessionExpiredNotice();
+        else window.location.href = 'login.html';
     }
     return resp;
 };
@@ -16,6 +150,11 @@ window.fetch = async function(...args) {
 // ============================================================
 // USER SESSION
 // ============================================================
+// A süti-értéket MINDIG százalékkódolva írjuk. Kódolatlanul egy ékezetes
+// munkaterület-név („Tanszék") UTF-8 bájtokként ment el, a backend viszont a
+// fejlécet latin-1-ként olvassa → „TanszÃ©k", ami egyik munkaterülettel sem
+// illeszkedett; egy „;"-t tartalmazó név pedig egyszerűen kettévágta a sütit.
+// (UI-17; a backend oldala: auth.decode_workspace_cookie.)
 function setCookie(name, value, days) {
     let expires = "";
     if (days) {
@@ -23,7 +162,7 @@ function setCookie(name, value, days) {
         date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
         expires = "; expires=" + date.toUTCString();
     }
-    document.cookie = name + "=" + (value || "") + expires + "; path=/; SameSite=Lax";
+    document.cookie = name + "=" + encodeURIComponent(value || "") + expires + "; path=/; SameSite=Lax";
 }
 
 function getCookie(name) {
@@ -32,54 +171,132 @@ function getCookie(name) {
     for (let i = 0; i < ca.length; i++) {
         let c = ca[i];
         while (c.charAt(0) == ' ') c = c.substring(1, c.length);
-        if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
+        if (c.indexOf(nameEQ) == 0) {
+            const raw = c.substring(nameEQ.length, c.length);
+            // A régi, kódolatlan értékek (és egy „100% kész"-féle név) nem
+            // érvényes százalékkódolás — ezeket nyersen adjuk vissza.
+            try { return decodeURIComponent(raw); } catch (_) { return raw; }
+        }
     }
     return null;
 }
 
-// Returns the DB owner key for the active workspace (stored in dubOwner cookie).
-// This is what the backend uses in the 'owner' field.
+// A jobok tulajdonosa (ADR-008): a FELHASZNÁLÓNÉV, munkaterülettől
+// függetlenül — a munkaterület a jobok címkéje, nem része a tulajdonosnak.
+// Eddig a nem-alapértelmezett munkaterületben „felhasználó::munkaterület"
+// kulcsot adott (a régi ADR-002 minta): a batch-lapok „Saját munkáim"
+// szűrője (owner === getOwner()) ott MINDEN tételt kiszűrt. (TD-027)
+// A `let _userInfo` lejjebb áll a fájlban: a kiértékelés közbeni hívás ne
+// fusson TDZ-hibára.
+function _ui() { try { return _userInfo; } catch (_) { return null; } }
+
 function getOwner() {
-    let n = getCookie('dubOwner');
-    if (!n) n = localStorage.getItem('dubOwner');
-    return n || getCookie('currentUser') || null;
+    const n = (_ui() && _ui().username) || getCookie('dubOwner')
+        || localStorage.getItem('dubOwner') || getCookie('currentUser');
+    return n ? String(n).split('::')[0] : null;
 }
 
-function _computeWorkspaceKey(username, workspaceName, workspaces) {
-    if (!workspaces || workspaces.length === 0 || workspaceName === workspaces[0]) {
-        return username;
-    }
-    return username + '::' + workspaceName;
+// Visszafelé-kompatibilis csonk: a tulajdonos-kulcs a felhasználónév (ADR-008).
+function _computeWorkspaceKey(username) {
+    return username;
 }
+
+// ── Munkaterület-szűrés (TD-027) ──────────────────────────────────────
+// A job címkéje a létrehozásakor aktív munkaterület (a backend is így
+// címkéz). Címke nélküli (a TD-027 előtti) vagy már törölt munkaterületű
+// job az alapértelmezettben (az első) látszik — így egy munkaterület
+// törlése sem tüntet el semmit. A lista a /api/workspaces-ből jön, és a
+// localStorage-ban is megmarad, hogy a lapok első renderje is szűrhessen.
+const _WS_CACHE_KEY = 'edti-workspaces';
+
+function _knownWorkspaces() {
+    const fromInfo = _ui() && _ui().workspaces;
+    if (fromInfo && fromInfo.length) return fromInfo;
+    try {
+        const cached = JSON.parse(localStorage.getItem(_WS_CACHE_KEY) || 'null');
+        if (Array.isArray(cached) && cached.length) return cached;
+    } catch (_) { /* ignore */ }
+    return null;
+}
+
+/** Az aktív munkaterület neve (címkézéshez) — ismeretlen listánál a süti. */
+function currentWorkspaceLabel() {
+    const wss = _knownWorkspaces();
+    const cur = getCookie('currentWorkspace') || '';
+    if (!wss) return cur || null;
+    return wss.includes(cur) ? cur : wss[0];
+}
+
+/** Egy job (címkéje alapján) az aktív munkaterületben látszik-e. */
+function isInCurrentWorkspace(label) {
+    const wss = _knownWorkspaces();
+    if (!wss) return true;                       // még nem ismert → nem szűrünk
+    const def = wss[0];
+    return (wss.includes(label) ? label : def) === currentWorkspaceLabel();
+}
+window.currentWorkspaceLabel = currentWorkspaceLabel;
+window.isInCurrentWorkspace = isInCurrentWorkspace;
 
 function applyOwnerDisplay() {
     const workspace = getCookie('currentWorkspace') || '';
     const el = document.getElementById('userDisplay');
     if (!el) return;
     const label = workspace || 'Alapértelmezett';
+
+    // A jelölő csak a HELYET adja (`.ws-switch`, a hub láblécében
+    // `.is-inline`); a tartalmat innen építjük, osztályokból. Korábban ez egy
+    // `style.cssText`-tel festett, pontozott aláhúzású szövegdarab volt —
+    // abból nem derült ki, hogy kattintható, sem hogy MIT vált. (UI-16)
+    el.classList.add('ws-switch');
     el.innerHTML = '';
+
+    const head = document.createElement('div');
+    head.className = 'ws-switch-head';
+    const caption = document.createElement('span');
+    caption.className = 'ws-switch-caption';
+    caption.textContent = 'Munkaterület';
+    head.appendChild(caption);
+    el.appendChild(head);
+
     const btn = document.createElement('button');
-    btn.textContent = label + ' ▾';
+    btn.type = 'button';
+    btn.className = 'ws-switch-btn';
     btn.title = 'Munkaterület váltása';
-    btn.style.cssText = 'background:none;border:none;color:inherit;cursor:pointer;font-size:inherit;padding:0;text-decoration:underline dotted;';
+    // A választó egy modális párbeszéd, nem menü — a segédtechnikának is ezt
+    // mondjuk, és a teljes nevet felolvastatjuk (a doboz levághatja).
+    btn.setAttribute('aria-haspopup', 'dialog');
+    btn.setAttribute('aria-label', `Munkaterület: ${label} — váltás`);
+
+    const mark = document.createElement('span');
+    mark.className = 'ws-switch-mark';
+    mark.setAttribute('aria-hidden', 'true');
+
+    const name = document.createElement('span');
+    name.className = 'ws-switch-name';
+    name.textContent = label;
+
+    // A chevron SVG `currentColor`-ral fest: prezentációs attribútum NEM vesz
+    // fel `var()`-t, a currentColor viszont a témát is követi.
+    const caret = document.createElement('span');
+    caret.className = 'ws-switch-caret';
+    caret.setAttribute('aria-hidden', 'true');
+    caret.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none">'
+        + '<path d="M3 4.5 6 7.5 9 4.5" stroke="currentColor" stroke-width="1.5" '
+        + 'stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+    btn.append(mark, name, caret);
     btn.onclick = openWorkspacePicker;
     el.appendChild(btn);
 
-    // ADR-008: role-badge a userDisplay mellett — a /api/whoami cache-ből.
+    // ADR-008: role-badge a váltó mellett — a /api/whoami cache-ből.
     // Ha még nincs _userInfo (első render), később a fetch ráül.
     const role = (_userInfo && _userInfo.role) || '';
     if (role) {
         const badge = document.createElement('span');
-        badge.className = 'role-badge role-' + role;
+        badge.className = 'role-badge' +
+            (role === 'admin' ? ' is-admin' : role === 'viewer' ? ' is-viewer' : '');
         badge.textContent = role.toUpperCase();
-        badge.style.cssText = (
-            'display:inline-block;margin-left:8px;padding:1px 7px;border-radius:4px;' +
-            'font-size:0.65rem;font-weight:700;letter-spacing:0.5px;vertical-align:middle;' +
-            (role === 'admin' ? 'background:#ef4444;color:#fff;'
-                : role === 'viewer' ? 'background:#6b7280;color:#fff;'
-                : 'background:#3b82f6;color:#fff;')
-        );
-        el.appendChild(badge);
+        head.appendChild(badge);
     } else {
         // Ha még nincs _userInfo, indítsunk egy lazy fetch-et és re-render-eljünk.
         // A cache miatt csak egy fetch fut a lap életében — minden későbbi
@@ -142,21 +359,20 @@ async function openWorkspacePicker() {
 
     const overlay = document.createElement('div');
     overlay.id = '_wsPicker';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    overlay.style.cssText = 'position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center;';
     overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
 
     const box = document.createElement('div');
-    box.style.cssText = 'background:#11141b;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:28px;min-width:320px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.6);font-family:inherit;color:#fff;';
+    box.style.cssText = 'background:var(--surface-raised);border:1px solid var(--border-color);border-radius:var(--radius-xl);padding:28px;min-width:320px;max-width:420px;width:90%;box-shadow:var(--shadow-xl);font-family:inherit;color:var(--text-primary);';
 
     box.innerHTML = `
-        <h3 style="margin:0 0 20px;font-size:1rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;">Munkaterület</h3>
-        <div id="_wsListItems" style="display:flex;flex-direction:column;gap:8px;"></div>
-        <div style="margin-top:20px;display:flex;gap:8px;">
-            <input id="_wsNewName" type="text" placeholder="Új munkaterület neve..." maxlength="50"
-                style="flex:1;padding:10px 14px;background:#0f172a;border:1px solid rgba(255,255,255,0.1);border-radius:12px;font-size:0.9rem;font-family:inherit;color:#fff;outline:none;">
-            <button id="_wsAddBtn" style="padding:10px 16px;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;border:none;border-radius:12px;cursor:pointer;font-size:0.9rem;font-weight:600;white-space:nowrap;transition:filter 0.2s;">+ Létrehozás</button>
+        <h3 class="ws-title">Munkaterület</h3>
+        <div id="_wsListItems" class="ws-list"></div>
+        <div class="ws-add">
+            <input id="_wsNewName" type="text" placeholder="Új munkaterület neve..." maxlength="50">
+            <button id="_wsAddBtn">+ Létrehozás</button>
         </div>
-        <div id="_wsError" style="color:#ef4444;font-size:0.85rem;margin-top:8px;display:none;"></div>
+        <div id="_wsError" class="ws-error hidden"></div>
     `;
 
     const list = box.querySelector('#_wsListItems');
@@ -167,9 +383,9 @@ async function openWorkspacePicker() {
         const btn = document.createElement('button');
         const isActive = ws === active;
         btn.textContent = (idx === 0 ? ws + ' (alap)' : ws);
-        btn.style.cssText = `flex:1;text-align:left;padding:10px 14px;border-radius:12px;cursor:pointer;font-size:0.95rem;font-family:inherit;font-weight:${isActive ? '600' : '400'};color:#fff;transition:all 0.2s;border:1px solid ${isActive ? '#6366f1' : 'rgba(255,255,255,0.08)'};background:${isActive ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.03)'};`;
-        btn.onmouseenter = () => { if (!isActive) btn.style.background = 'rgba(255,255,255,0.07)'; };
-        btn.onmouseleave = () => { if (!isActive) btn.style.background = 'rgba(255,255,255,0.03)'; };
+        btn.style.cssText = `flex:1;text-align:left;padding:10px 14px;border-radius:12px;cursor:pointer;font-size:0.95rem;font-family:inherit;font-weight:${isActive ? '600' : '400'};color:var(--text-primary);transition:all 0.2s;border:1px solid ${isActive ? 'var(--accent-color)' : 'var(--border-subtle)'};background:${isActive ? 'var(--accent-soft-hover)' : 'var(--tint-2)'};`;
+        btn.onmouseenter = () => { if (!isActive) btn.style.background = 'var(--tint-4)'; };
+        btn.onmouseleave = () => { if (!isActive) btn.style.background = 'var(--tint-2)'; };
         btn.onclick = () => { switchWorkspace(ws, workspaces); overlay.remove(); };
         row.appendChild(btn);
 
@@ -177,9 +393,9 @@ async function openWorkspacePicker() {
             const del = document.createElement('button');
             del.textContent = '✕';
             del.title = 'Törlés';
-            del.style.cssText = 'padding:8px 12px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.1);color:#ef4444;border-radius:10px;cursor:pointer;font-size:0.85rem;transition:all 0.2s;';
-            del.onmouseenter = () => { del.style.background = 'rgba(239,68,68,0.2)'; };
-            del.onmouseleave = () => { del.style.background = 'rgba(239,68,68,0.1)'; };
+            del.style.cssText = 'padding:8px 12px;border:1px solid rgba(239,68,68,0.3);background:var(--danger-soft);color:var(--danger-text);border-radius:var(--radius-md);cursor:pointer;font-size:0.85rem;transition:all 0.2s;';
+            del.onmouseenter = () => { del.style.background = 'var(--danger-soft-hover, rgba(239,68,68,0.28))'; };
+            del.onmouseleave = () => { del.style.background = 'var(--danger-soft)'; };
             del.onclick = () => deleteWorkspace(ws, overlay);
             row.appendChild(del);
         }
@@ -192,7 +408,7 @@ async function openWorkspacePicker() {
     box.querySelector('#_wsAddBtn').onclick = () => addWorkspace(box, overlay, workspaces);
     box.querySelector('#_wsNewName').onkeydown = (e) => { if (e.key === 'Enter') addWorkspace(box, overlay, workspaces); };
     box.querySelector('#_wsNewName').onfocus = (e) => { e.target.style.borderColor = 'rgba(99,102,241,0.6)'; };
-    box.querySelector('#_wsNewName').onblur = (e) => { e.target.style.borderColor = 'rgba(255,255,255,0.1)'; };
+    box.querySelector('#_wsNewName').onblur = (e) => { e.target.style.borderColor = 'var(--border-color)'; };
 
     overlay.appendChild(box);
     document.body.appendChild(overlay);
@@ -200,11 +416,9 @@ async function openWorkspacePicker() {
 }
 
 function switchWorkspace(wsName, workspaces) {
-    const username = getCookie('currentUser') || '';
-    const key = _computeWorkspaceKey(username, wsName, workspaces);
+    // A tulajdonos nem változik (ADR-008) — csak az aktív címke; az újratöltés
+    // után minden lista az új munkaterület szerint szűr. (TD-027)
     setCookie('currentWorkspace', wsName, 365);
-    setCookie('dubOwner', key, 365);
-    localStorage.setItem('dubOwner', key);
     window.location.reload();
 }
 
@@ -216,9 +430,6 @@ async function deleteWorkspace(wsName, overlay) {
             const currentWs = getCookie('currentWorkspace') || '';
             if (currentWs === wsName) {
                 document.cookie = 'currentWorkspace=; path=/; max-age=0';
-                const username = getCookie('currentUser') || '';
-                setCookie('dubOwner', username, 365);
-                localStorage.setItem('dubOwner', username);
             }
             overlay.remove();
             window.location.reload();
@@ -233,8 +444,8 @@ async function addWorkspace(box, overlay, existingWorkspaces) {
     const input = box.querySelector('#_wsNewName');
     const errEl = box.querySelector('#_wsError');
     const name = input.value.trim();
-    errEl.style.display = 'none';
-    if (!name) { errEl.textContent = 'Add meg a munkaterület nevét.'; errEl.style.display = 'block'; return; }
+    errEl.classList.add('hidden');
+    if (!name) { errEl.textContent = 'Add meg a munkaterület nevét.'; errEl.classList.remove('hidden'); return; }
     try {
         const res = await fetch(`${API_URL}/workspaces`, {
             method: 'POST',
@@ -248,9 +459,9 @@ async function addWorkspace(box, overlay, existingWorkspaces) {
         } else {
             const d = await res.json().catch(() => ({}));
             errEl.textContent = d.detail || 'Hiba a létrehozáskor.';
-            errEl.style.display = 'block';
+            errEl.classList.remove('hidden');
         }
-    } catch(e) { errEl.textContent = 'Hálózati hiba.'; errEl.style.display = 'block'; }
+    } catch(e) { errEl.textContent = 'Hálózati hiba.'; errEl.classList.remove('hidden'); }
 }
 
 // ============================================================
@@ -365,20 +576,25 @@ async function initSharedSession(onReady) {
             const currentWs = getCookie('currentWorkspace') || '';
             const wsToUse = workspaces.includes(currentWs) ? currentWs : active;
             if (wsToUse !== currentWs) setCookie('currentWorkspace', wsToUse, 365);
-            // Compute and store owner key
-            const key = _computeWorkspaceKey(authUser, wsToUse, workspaces);
-            setCookie('dubOwner', key, 365);
-            localStorage.setItem('dubOwner', key);
+            // A munkaterület-lista a lapok előzmény-szűréséhez (TD-027); ha
+            // eddig nem volt ismert, a már kirajzolt előzménylista újraszűrődik.
+            let hadList = false;
+            try { hadList = !!localStorage.getItem(_WS_CACHE_KEY); } catch (_) { /* ignore */ }
+            try { localStorage.setItem(_WS_CACHE_KEY, JSON.stringify(workspaces)); } catch (_) { /* ignore */ }
+            if (!hadList && typeof window.renderHistory === 'function') {
+                try { window.renderHistory(); } catch (_) { /* ignore */ }
+            }
         }
-    } catch(e) {
-        // Fallback: use username as owner
-        setCookie('dubOwner', authUser, 365);
-        localStorage.setItem('dubOwner', authUser);
-    }
+    } catch(e) { /* offline — a tulajdonos a felhasználónév marad */ }
 
     // ADR-008: /api/whoami fetch (role + workspaces). A render előtt kell,
     // hogy a role-badge azonnal megjelenjen a userDisplay-en.
     await ensureUserInfo();
+    // A tulajdonos a szerver szerinti (kanonikus) felhasználónév — a
+    // belépéskor beírt név kis-nagybetűje eltérhet tőle. (TD-027)
+    const owner = (_userInfo && _userInfo.username) || authUser;
+    setCookie('dubOwner', owner, 365);
+    try { localStorage.setItem('dubOwner', owner); } catch (_) { /* ignore */ }
 
     applyOwnerDisplay();
     startMonitor();
@@ -725,6 +941,13 @@ const _PROCESS_META = {
         singleHref: 'course.html',
         batchHref: null,
     },
+    convert: {
+        icon: '🔄',
+        title: 'Fájlkonvertáló',
+        subtitle: 'Helyi konvertálás — a fájl nem megy külső szolgáltatóhoz',
+        singleHref: 'convert.html',
+        batchHref: null,
+    },
 };
 
 function renderProcessBanner({ process, mode = 'single', targetId = 'processBanner', titleOverride = null, subtitleOverride = null } = {}) {
@@ -911,7 +1134,7 @@ function computeETA(createdAt, progress) {
 function formatEtaHtml(createdAt, progress) {
     const eta = computeETA(createdAt, progress);
     if (!eta) return '';
-    return '<span class="job-eta" title="' + eta.label + '" style="color:#a78bfa; font-size:0.78rem; margin-left:8px; font-weight:500;">⏳ ' + eta.short + '</span>';
+    return '<span class="job-eta" title="' + eta.label + '">⏳ ' + eta.short + '</span>';
 }
 
 window.computeETA = computeETA;
@@ -959,7 +1182,7 @@ function detectStuck(updatedAt) {
 function formatStuckHtml(updatedAt) {
     const stuck = detectStuck(updatedAt);
     if (!stuck.isStuck) return '';
-    return '<span class="job-stuck" title="' + stuck.label + '" style="color:#ef4444; font-size:0.78rem; margin-left:8px; font-weight:600;">' + stuck.label + '</span>';
+    return '<span class="job-stuck" title="' + stuck.label + '">' + stuck.label + '</span>';
 }
 
 window.detectStuck = detectStuck;

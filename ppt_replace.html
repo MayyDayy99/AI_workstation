@@ -11,20 +11,22 @@
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon.svg">
     <title>EDTI Stúdió — PPT Háttércsere</title>
-    <link rel="stylesheet" href="style.css?v=3">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=b2484b1bda">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        #serverMonitor { padding: 12px 16px; border-top: 1px solid #222; font-size: 0.78rem; color: #888; }
-        #serverMonitor .monitor-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #555; margin-bottom: 8px; }
+        #serverMonitor { padding: 12px 16px; border-top: 1px solid var(--surface-raised); font-size: 0.78rem; color: var(--text-secondary); }
+        #serverMonitor .monitor-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); margin-bottom: 8px; }
         .monitor-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-        .monitor-label { min-width: 38px; color: #666; }
-        .monitor-bar-bg { flex: 1; height: 6px; background: #222; border-radius: 3px; overflow: hidden; }
+        .monitor-label { min-width: 38px; color: var(--text-muted); }
+        .monitor-bar-bg { flex: 1; height: 6px; background: var(--surface-raised); border-radius: 3px; overflow: hidden; }
         .monitor-bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; background: #10b981; }
         .monitor-bar-fill.warn { background: #f59e0b; }
         .monitor-bar-fill.danger { background: #ef4444; }
-        .monitor-val { min-width: 34px; text-align: right; color: #aaa; font-size: 0.75rem; }
-        .monitor-queue { margin-top: 4px; font-size: 0.75rem; color: #666; }
-        .monitor-queue span { color: #10b981; font-weight: 600; }
+        .monitor-val { min-width: 34px; text-align: right; color: var(--text-secondary); font-size: 0.75rem; }
+        .monitor-queue { margin-top: 4px; font-size: 0.75rem; color: var(--text-muted); }
+        .monitor-queue span { color: var(--success-text); font-weight: 600; }
 
         /* Dual upload grid */
         .upload-dual { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
@@ -38,8 +40,8 @@
             font-size: 0.82rem; min-height: 20px; margin-top: 6px;
             color: var(--text-secondary);
         }
-        .upload-status.ok { color: #10b981; }
-        .upload-status.err { color: #ef4444; }
+        .upload-status.ok { color: var(--success-text); }
+        .upload-status.err { color: var(--danger-text); }
 
         /* Config rows */
         .config-row {
@@ -94,16 +96,13 @@
     <div class="app-container">
         <aside class="sidebar">
             <div class="brand">
-                <a href="index.html" style="text-decoration:none;"><h1>EDTI Stúdió</h1></a>
-                <div id="userDisplay" style="font-size:0.8rem; color:#555; margin-top:4px;"></div>
+                <a href="index.html" class="no-underline"><h1>EDTI Stúdió</h1></a>
+                <div id="userDisplay" class="ws-switch"></div>
             </div>
-            <div style="padding: 0 1rem; margin-bottom: 0.5rem;">
-                <a href="index.html" class="back-to-hub">← Vissza a főoldalra</a>
-            </div>
-            <div style="padding: 0 1rem; margin-bottom: 1rem;">
-                <button onclick="logoutUser()" class="btn btn-secondary" style="width:100%; display:block; text-align:center; font-size:0.8rem; opacity:0.7;">🚪 Kijelentkezés</button>
-            </div>
-            <div style="padding: 0 4px; margin-bottom: 0.5rem;">
+            <nav class="sidebar-nav" aria-label="Fő navigáció">
+                <a href="index.html" class="btn btn-secondary btn-block">← Vissza a főoldalra</a>
+            </nav>
+            <div class="sidebar-item is-tight">
                 <div class="date-filter-pills" id="historyDatePills">
                     <button class="date-pill active" id="hpAll"   onclick="setHistoryDateFilter('all')">Összes</button>
                     <button class="date-pill"        id="hpToday" onclick="setHistoryDateFilter('today')">📅 Ma</button>
@@ -111,34 +110,34 @@
                 </div>
             </div>
             <div class="history-list" id="jobHistory">
-                <div style="padding:20px; color:#555; font-size:0.85rem;">Nincs korábbi feladat</div>
+                <div class="empty-history">Nincs korábbi feladat</div>
             </div>
             <div id="serverMonitor">
                 <div class="monitor-title">⚡ Szerver Terhelés</div>
                 <div class="monitor-row">
                     <span class="monitor-label">CPU</span>
                     <div class="monitor-bar-bg">
-                        <div class="monitor-bar-fill" id="monCpu" style="width:0%"></div>
+                        <div class="monitor-bar-fill" id="monCpu"></div>
                     </div>
                     <span class="monitor-val" id="monCpuTxt">–</span>
                 </div>
                 <div class="monitor-row">
                     <span class="monitor-label">VRAM</span>
                     <div class="monitor-bar-bg">
-                        <div class="monitor-bar-fill" id="monVram" style="width:0%"></div>
+                        <div class="monitor-bar-fill" id="monVram"></div>
                     </div>
                     <span class="monitor-val" id="monVramTxt">–</span>
                 </div>
                 <div class="monitor-row">
                     <span class="monitor-label">RAM</span>
                     <div class="monitor-bar-bg">
-                        <div class="monitor-bar-fill" id="monRam" style="width:0%"></div>
+                        <div class="monitor-bar-fill" id="monRam"></div>
                     </div>
                     <span class="monitor-val" id="monRamTxt">–</span>
                 </div>
-                <div class="monitor-row" style="margin-top:2px;">
-                    <span class="monitor-label" style="min-width:64px; color:#555;">Törölhető</span>
-                    <span class="monitor-val" id="monStorageTxt" style="text-align:left; flex:1; color:#10b981; font-weight:600;">–</span>
+                <div class="monitor-row monitor-row-storage">
+                    <span class="monitor-label">Törölhető</span>
+                    <span class="monitor-val" id="monStorageTxt">–</span>
                 </div>
                 <div class="monitor-queue">Sor: <span id="monQueue">–</span> | Fut: <span id="monRunning">–</span></div>
             </div>
@@ -182,7 +181,7 @@
                         <div class="upload-zone-label">🎬 Videó (MP4, MOV, MKV)</div>
                         <div class="upload-area" id="videoDropZone">
                             <p>Húzd ide a videót</p>
-                            <input type="file" id="videoInput" accept=".mp4,.mov,.mkv,.avi" hidden>
+                            <input type="file" id="videoInput" accept=".mp4,.mov,.mkv,.f4v,.avi" hidden>
                             <button class="btn btn-primary" onclick="document.getElementById('videoInput').click()">Kiválasztás</button>
                         </div>
                         <div class="upload-status" id="videoStatus">Nincs kiválasztva</div>
@@ -208,7 +207,7 @@
             <!-- Step 2: Configure -->
             <section id="configSection" class="card hidden">
                 <h2>⚙️ Beállítások</h2>
-                <p class="hint" style="margin-bottom:24px;">Szegmentálás minősége és kimeneti opciók.</p>
+                <p class="hint mb-6">Szegmentálás minősége és kimeneti opciók.</p>
 
                 <div class="config-row">
                     <label>Szegmentálás minősége</label>
@@ -220,7 +219,7 @@
                             ⚡ Gyors (MobileNetV3)
                         </button>
                     </div>
-                    <small style="color:var(--text-secondary);font-size:0.8rem;margin-top:4px;">
+                    <small class="text-xs text-secondary mt-1">
                         Magas minőség: jobb hajél és ruha kontúr · Gyors: rövidebb feldolgozási idő
                     </small>
                 </div>
@@ -233,7 +232,7 @@
                     </label>
                 </div>
 
-                <div class="actions" style="gap:12px;">
+                <div class="actions gap-3">
                     <button class="btn btn-secondary" onclick="resetPage()">← Vissza</button>
                     <button id="startBtn" class="btn btn-accent">Feldolgozás indítása</button>
                 </div>
@@ -246,30 +245,30 @@
                     <span id="jobStageBadge" class="badge">Inicializálás</span>
                 </div>
                 <div class="progress-bar-container">
-                    <div class="progress-bar" id="progressBar" style="width:0%"></div>
+                    <div class="progress-bar" id="progressBar"></div>
                 </div>
                 <p id="statusDetail" class="status-detail">PPT háttércsere folyamatban...</p>
-                <div id="statusActions" style="margin-top:16px; display:flex; gap:12px;">
-                    <button class="btn btn-secondary" id="cancelJobBtn" style="font-size:0.8rem;opacity:0.7;" onclick="cancelJob()">⏸️ Megszakítás / Szünet</button>
-                    <button class="btn btn-accent hidden" id="resumeJobBtn" style="font-size:0.8rem;" onclick="resumeJob()">▶ Folytatás</button>
+                <div id="statusActions" class="row gap-3 mt-4">
+                    <button class="btn btn-secondary is-faded btn-xs" id="cancelJobBtn" onclick="cancelJob()">⏸️ Megszakítás / Szünet</button>
+                    <button class="btn btn-accent hidden btn-xs" id="resumeJobBtn" onclick="resumeJob()">▶ Folytatás</button>
                 </div>
             </section>
 
             <!-- Step 4: Download -->
             <section id="downloadSection" class="card hidden">
                 <h2>✅ Háttércsere kész!</h2>
-                <p class="hint" style="margin-bottom:24px;">Az új prezentáció beillesztése sikeresen megtörtént.</p>
+                <p class="hint mb-6">Az új prezentáció beillesztése sikeresen megtörtént.</p>
                 <div class="download-grid">
                     <div class="download-card">
                         <span class="icon">🖼️</span>
                         <span class="label">PPT-cserélt videó</span>
-                        <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:16px;" id="outputFilename">output.mp4</p>
+                        <p class="text-xs text-secondary mb-4" id="outputFilename">output.mp4</p>
                         <div class="download-card-actions">
                             <button class="btn btn-accent" onclick="downloadOutput()">Letöltés</button>
                         </div>
                     </div>
                 </div>
-                <div style="margin-top:24px;">
+                <div class="mt-6">
                     <button class="btn btn-secondary" onclick="resetPage()">← Új videó feldolgozása</button>
                 </div>
             </section>
@@ -283,8 +282,13 @@
 <script src="mock_routes_flow.js"></script>
 <script src="mock_routes_subtitle.js"></script>
 <script src="mock_routes_misc.js"></script>
-<script src="shared.js?v=11"></script>
-    <script src="ppt_replace.js"></script>
+<script src="mock_routes_extra.js"></script>
+<script src="shared.js?v=fc5bbe1843"></script>
+    <!-- a darabolt feltöltéshez; a dedup.js az upload_queue.js ELŐTT kell
+         (az UploadQueue a szignatúrát a DedupUpload-dal számolja) -->
+    <script src="dedup.js?v=38521c9819"></script>
+    <script src="upload_queue.js?v=e5d8ea7fb0"></script>
+    <script src="ppt_replace.js?v=32e9a6bdd6"></script>
     <script>
         // Egységes fejléc-csík — PPT csere, lila színkód. A folyamatnak nincs
         // batch változata (mode=batch-et a shared.js nem ad toggle-linket,

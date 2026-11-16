@@ -24,7 +24,7 @@
     }
   ],
   "share_target": {
-    "action": "/api/share-target",
+    "action": "api/share-target",
     "method": "POST",
     "enctype": "multipart/form-data",
     "params": {
@@ -53,19 +53,19 @@
       "name": "Batch szinkron",
       "short_name": "Batch",
       "description": "Tömeges fájlfeltöltés a szinkron pipeline-ra.",
-      "url": "/batch.html",
+      "url": "batch.html",
       "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
     },
     {
       "name": "Intro–Outro batch",
       "short_name": "Intro/Outro",
-      "url": "/intro_outro_batch.html",
+      "url": "intro_outro_batch.html",
       "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
     },
     {
       "name": "PPT narráció",
       "short_name": "PPT",
-      "url": "/ppt_narrate_batch.html",
+      "url": "ppt_narrate_batch.html",
       "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
     }
   ]

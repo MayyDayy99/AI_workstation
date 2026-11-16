@@ -146,8 +146,10 @@
     // minden mást (pl. dub_full) alap sim-viselkedéssel kezel, így a
     // betöltési sorrend a többi route-modullal szemben nem kritikus.
     // ============================================================
-    M.route('POST', 'api/upload', (m, req) => {
-        const mode = req.query.get('mode') || 'dub_full';
+    // A core modul 'api/upload' route-ja előbb regisztrálódik, ezért a felirat/leirat
+    // módokat belső útvonalon adja ide tovább (a régi útvonal is marad).
+    M.route('POST', 'api/upload(?:/__modes)?', (m, req) => {
+        const mode = req.query.get('mode') || (req.form && req.form.get('mode')) || 'dub_full';
         const owner = req.query.get('owner') || 'demo';
         const f = (req.form && typeof req.form.get === 'function') ? req.form.get('file') : null;
         const filename = (f && f.name) || 'feltoltott_video.mp4';

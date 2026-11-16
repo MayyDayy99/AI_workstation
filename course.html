@@ -11,8 +11,11 @@
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon.svg">
     <title>EDTI Stúdió — Intelligens Tallózás</title>
-    <link rel="stylesheet" href="style.css?v=2">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=b2484b1bda">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- mappa → ZIP memória nélkül (a JSZip minden fájlt egészében beolvasott; UI-33) -->
     <script src="mock_core.js"></script>
 <script src="mock_routes_core.js"></script>
 <script src="mock_routes_batch.js"></script>
@@ -20,27 +23,28 @@
 <script src="mock_routes_flow.js"></script>
 <script src="mock_routes_subtitle.js"></script>
 <script src="mock_routes_misc.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="mock_routes_extra.js"></script>
+<script src="zip_store.js?v=a86557cd00"></script>
     <style>
         /* ====== Course-specific styles ====== */
         .course-card {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+            background: var(--tint-2);
+            border: 1px solid var(--tint-3);
             padding: 1.25rem;
             border-radius: 10px;
             margin-bottom: 1rem;
         }
 
         .course-card.status-done {
-            border-left: 3px solid #10b981;
+            border-left: 3px solid var(--success);
         }
 
         .course-card.status-processing {
-            border-left: 3px solid #3b82f6;
+            border-left: 3px solid var(--process-dub);
         }
 
         .course-card.status-done_with_errors {
-            border-left: 3px solid #f59e0b;
+            border-left: 3px solid var(--warning);
         }
 
         .course-header {
@@ -55,8 +59,26 @@
             font-size: 1.1rem;
         }
 
+        /* A kurzus-kártya meta-sorai és gombsora — eddig inline stílusként
+           utaztak a JS-template-literálban. (UI-8) */
+        .course-meta {
+            font-size: var(--fs-xs);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-2);
+        }
+
+        .course-meta.is-muted {
+            color: var(--text-muted);
+        }
+
+        .course-card-actions {
+            display: flex;
+            gap: var(--space-3);
+            margin-top: var(--space-4);
+        }
+
         .course-progress {
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--tint-3);
             border-radius: 6px;
             height: 8px;
             overflow: hidden;
@@ -67,7 +89,7 @@
             height: 100%;
             border-radius: 6px;
             transition: width 0.5s ease;
-            background: linear-gradient(90deg, #6366f1, #10b981);
+            background: linear-gradient(90deg, var(--border-accent), var(--success));
         }
 
         .video-list {
@@ -82,7 +104,7 @@
             gap: 0.75rem;
             padding: 0.4rem 0;
             font-size: 0.85rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            border-bottom: 1px solid var(--tint-2);
         }
 
         .video-item:last-child {
@@ -97,12 +119,12 @@
 
         .video-path {
             flex: 1;
-            color: #ccc;
+            color: var(--text-secondary);
             word-break: break-all;
         }
 
         .video-detail {
-            color: #6b7280;
+            color: var(--text-muted);
             font-size: 0.78rem;
         }
 
@@ -118,7 +140,7 @@
 
         .upload-zone:hover,
         .upload-zone.dragover {
-            border-color: #6366f1;
+            border-color: var(--border-accent);
             background: rgba(99, 102, 241, 0.06);
         }
 
@@ -140,7 +162,7 @@
         }
 
         .mode-gate-copy p {
-            color: #9ca3af;
+            color: var(--text-secondary);
             font-size: 0.92rem;
             line-height: 1.5;
             margin-top: 0.35rem;
@@ -148,16 +170,24 @@
 
         .mode-gate-grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 1rem;
+            /* auto-fit: a rács MAGÁTÓL egyoszloposra vált, amikor a kártya már
+               nem fér el 260px-en — nem kell hozzá töréspont. Ezzel megszűnt a
+               lap 900px-es, kanonikuson kívüli @media szabálya. */
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: var(--space-4);
         }
 
         .mode-choice {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 14px;
-            padding: 1rem;
+            background: var(--tint-2);
+            border: 1px solid var(--tint-4);
+            border-radius: var(--radius-lg);
+            padding: var(--space-4);
             cursor: pointer;
+            /* A <button> NEM örökli a szövegszínt: enélkül a böngésző fekete
+               alapértelmezése jött, ami sötét kártyán majdnem láthatatlan. */
+            color: var(--text-primary);
+            font-family: inherit;
+            text-align: left;
             transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
         }
 
@@ -167,7 +197,7 @@
         }
 
         .mode-choice.active {
-            border-color: #6366f1;
+            border-color: var(--border-accent);
             box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25);
             background: rgba(99, 102, 241, 0.08);
         }
@@ -181,15 +211,15 @@
         }
 
         .mode-choice-sub {
-            color: #9ca3af;
+            color: var(--text-secondary);
             font-size: 0.82rem;
             line-height: 1.45;
         }
 
         .mode-choice-tag {
             font-size: 0.72rem;
-            color: #818cf8;
-            background: rgba(99, 102, 241, 0.12);
+            color: var(--accent-text);
+            background: var(--accent-soft);
             border-radius: 999px;
             padding: 3px 8px;
         }
@@ -204,12 +234,12 @@
         }
 
         .mode-gate-status {
-            color: #9ca3af;
+            color: var(--text-secondary);
             font-size: 0.88rem;
         }
 
         .mode-gate-status strong {
-            color: #fff;
+            color: var(--text-primary);
         }
 
         .workspace-hero {
@@ -221,13 +251,20 @@
             flex-wrap: wrap;
         }
 
+        .mode-label {
+            font-weight: var(--fw-semibold);
+            color: var(--text-primary);
+        }
+
         .workspace-active-mode {
+            padding: 0.55rem 0.8rem;
+            min-height: 42px;
             display: flex;
             align-items: center;
             gap: 0.8rem;
             padding: 0.85rem 1rem;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.06);
+            background: var(--tint-2);
+            border: 1px solid var(--tint-4);
             border-radius: 12px;
         }
 
@@ -238,14 +275,14 @@
         }
 
         .workspace-active-copy small {
-            color: #9ca3af;
+            color: var(--text-secondary);
             font-size: 0.75rem;
             text-transform: uppercase;
             letter-spacing: 0.04em;
         }
 
         .workspace-active-copy strong {
-            color: #fff;
+            color: var(--text-primary);
             font-size: 1rem;
         }
 
@@ -253,11 +290,7 @@
             display: none !important;
         }
 
-        @media (max-width: 900px) {
-            .mode-gate-grid {
-                grid-template-columns: 1fr;
-            }
-        }
+
 
         .settings-row {
             display: flex;
@@ -268,19 +301,22 @@
 
         .settings-row label {
             font-size: 0.85rem;
-            color: #9ca3af;
+            color: var(--text-secondary);
             margin-bottom: 0.25rem;
             display: block;
         }
 
+        /* background-color / padding-inline-start, NEM rövidítés — lásd a
+           közös select-szabályt: a rövidítés nullázná a rajzolt nyilat. */
         .settings-row select,
         .settings-row input[type="checkbox"] {
-            background: #0f172a;
-            border: 1px solid #333;
-            color: #fff;
-            padding: 6px 10px;
-            border-radius: 6px;
-            font-size: 0.85rem;
+            background-color: var(--surface-sunken);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding-block: 6px;
+            padding-inline-start: 10px;
+            border-radius: var(--radius-sm);
+            font-size: var(--fs-sm);
         }
 
         .upload-progress-bar {
@@ -289,7 +325,7 @@
         }
 
         .upload-progress-bar .bar-bg {
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--tint-3);
             border-radius: 6px;
             height: 8px;
             overflow: hidden;
@@ -298,14 +334,25 @@
         .upload-progress-bar .bar-fill {
             height: 100%;
             border-radius: 6px;
-            background: #6366f1;
+            background: var(--border-accent);
             transition: width 0.3s ease;
             width: 0%;
         }
 
+        /* A feltöltés-sáv állapota osztályból, nem inline színből.
+           A szabály az alapszabály UTÁN áll: azonos specifikusságnál a
+           későbbi nyer, és így nem kell !important. */
+        .upload-progress-bar .bar-fill.is-done {
+            background: var(--success);
+        }
+
+        .upload-progress-bar .bar-fill.is-error {
+            background: var(--danger);
+        }
+
         .upload-progress-bar .bar-text {
             font-size: 0.8rem;
-            color: #9ca3af;
+            color: var(--text-secondary);
             margin-top: 6px;
         }
 
@@ -319,92 +366,30 @@
 
         .badge-done {
             background: rgba(16, 185, 129, 0.15);
-            color: #10b981;
+            color: var(--success-text);
         }
 
         .badge-processing {
-            background: rgba(59, 130, 246, 0.15);
-            color: #3b82f6;
+            background: var(--process-dub-bg);
+            color: var(--indigo-300);
         }
 
         .badge-error {
             background: rgba(239, 68, 68, 0.15);
-            color: #ef4444;
+            color: var(--danger-text);
         }
 
         .badge-pending {
             background: rgba(107, 114, 128, 0.15);
-            color: #6b7280;
+            color: var(--text-muted);
         }
 
         /* ====== Server Monitor Widget ====== */
-        #serverMonitor {
-            padding: 12px 16px;
-            border-top: 1px solid #222;
-            font-size: 0.78rem;
-            color: #888;
-        }
+        /* A #serverMonitor és a .monitor-* szabályok INNEN ELTÁVOLÍTVA: a közös
+           style.css-ben élnek, ez a helyi másolat csak duplikálta őket (két
+           apró eltéréssel: border-top var(--surface-raised) a token helyett, color var(--text-secondary) a
+           --text-secondary helyett). A .monitor-row-storage a közös lapon van. */
 
-        #serverMonitor .monitor-title {
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #555;
-            margin-bottom: 8px;
-        }
-
-        .monitor-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 6px;
-        }
-
-        .monitor-label {
-            min-width: 38px;
-            color: #666;
-        }
-
-        .monitor-bar-bg {
-            flex: 1;
-            height: 6px;
-            background: #222;
-            border-radius: 3px;
-            overflow: hidden;
-        }
-
-        .monitor-bar-fill {
-            height: 100%;
-            border-radius: 3px;
-            transition: width 0.5s ease;
-            background: #10b981;
-        }
-
-        .monitor-bar-fill.warn {
-            background: #f59e0b;
-        }
-
-        .monitor-bar-fill.danger {
-            background: #ef4444;
-        }
-
-        .monitor-val {
-            min-width: 34px;
-            text-align: right;
-            color: #aaa;
-            font-size: 0.75rem;
-        }
-
-        .monitor-queue {
-            margin-top: 4px;
-            font-size: 0.75rem;
-            color: #666;
-        }
-
-        .monitor-queue span {
-            color: #10b981;
-            font-weight: 600;
-        }
 
         /* ====== Active mode indicator on drop zone ====== */
         .mode-indicator {
@@ -416,44 +401,59 @@
             margin-bottom: 0.75rem;
             letter-spacing: 0.02em;
         }
-        .mode-indicator.mode-dub_full       { background: rgba(99,102,241,0.15); color: #818cf8; }
-        .mode-indicator.mode-subtitles_only  { background: rgba(59,130,246,0.15); color: #60a5fa; }
-        .mode-indicator.mode-transcript_only { background: rgba(245,158,11,0.15); color: #fbbf24; }
-        .mode-indicator.mode-intro_outro     { background: rgba(16,185,129,0.15); color: #34d399; }
+        /* A mód-jelzők a RENDSZER folyamat-színeit viselik. Eddig saját
+           palettájuk volt, és a leirat/intro-outro pár FEL VOLT CSERÉLVE a
+           hubhoz és a lapok fejléc-csíkjához képest: itt a borostyán a
+           leiratot jelölte, a zöld az intro/outrót, miközben mindenhol
+           máshol fordítva. Aki a hubon megtanulta a színkódot, ezt a lapot
+           félreolvasta. */
+        /* A mód színe EGY helyen dől el, és innen olvassa a pill (.mode-indicator)
+           és a megerősítő ablak szöveges értéke (.mode-text) is. Korábban a CSS
+           és egy JS-beli modeColors térkép KÜLÖN vitte a palettát — a CSS-t
+           javítottuk, a JS meg tovább hordta a régit. Egy forrás, egy igazság. */
+        /* A SZÖVEG a -ink változatot kapja, nem a nyers folyamat-színt: a
+           --process-* a jelvény KERETÉHEZ hangolt telített árnyalat, ami a
+           halvány -bg háttéren világos témában 2:1 alá esik (UI-7). */
+        .mode-dub_full        { --mode-color: var(--process-dub-ink);         --mode-bg: var(--process-dub-bg); }
+        .mode-subtitles_only  { --mode-color: var(--process-subtitle-ink);    --mode-bg: var(--process-subtitle-bg); }
+        .mode-transcript_only { --mode-color: var(--process-transcribe-ink);  --mode-bg: var(--process-transcribe-bg); }
+        .mode-intro_outro     { --mode-color: var(--process-intro-outro-ink); --mode-bg: var(--process-intro-outro-bg); }
+
+        .mode-indicator[class*="mode-"] {
+            background: var(--mode-bg, var(--surface-hover));
+            color: var(--mode-color, var(--text-secondary));
+        }
+
+        .mode-text {
+            color: var(--mode-color, var(--text-primary));
+            font-weight: var(--fw-semibold);
+        }
 
         /* ====== Settings: highlight selected mode ====== */
         .settings-row select#modeSelect {
-            font-weight: 600;
-            padding: 8px 12px;
+            font-weight: var(--fw-semibold);
+            /* padding-rövidítés helyett hosszú alak — a rövidítés nullázná a
+               közös select-szabály padding-right-ját, és a szöveg a nyíl alá
+               futna. */
+            padding-block: 8px;
+            padding-inline-start: 12px;
         }
 
         /* ====== Confirm modal ====== */
-        #confirmModal {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.8);
-            z-index: 9999;
-            justify-content: center;
-            align-items: center;
-        }
-        #confirmModal.show { display: flex; }
-
+        /* A #confirmModal / .confirm-box szabályok INNEN ELTÁVOLÍTVA: a közös
+           .confirm-modal / .confirm-modal-box adja őket, és ugyanúgy .show
+           osztállyal nyílnak — a JS változatlan. A .confirm-box osztály a
+           jelölőn marad, mert a szélességet alább még ő állítja.
+           A .confirm-summary / .confirm-row / .confirm-warning valóban
+           lap-specifikus (összegző táblázat), ezért maradnak. */
         .confirm-box {
-            background: #1a1a2e;
-            border: 1px solid rgba(99,102,241,0.4);
-            border-radius: 16px;
-            padding: 2rem 2.5rem;
             max-width: 520px;
-            width: 92%;
+            text-align: left;
         }
-        .confirm-box h2 {
-            margin: 0 0 1.25rem;
-            font-size: 1.3rem;
-        }
+
         .confirm-summary {
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.06);
+            background: var(--tint-2);
+            border: 1px solid var(--tint-4);
             border-radius: 10px;
             padding: 1rem 1.25rem;
             margin-bottom: 1.5rem;
@@ -464,8 +464,8 @@
             padding: 6px 0;
             font-size: 0.9rem;
         }
-        .confirm-row .label { color: #9ca3af; }
-        .confirm-row .value { color: #fff; font-weight: 600; }
+        .confirm-row .label { color: var(--text-secondary); }
+        .confirm-row .value { color: var(--text-primary); font-weight: 600; }
         .confirm-warning {
             background: rgba(245,158,11,0.1);
             border: 1px solid rgba(245,158,11,0.25);
@@ -473,7 +473,7 @@
             padding: 0.75rem 1rem;
             margin-bottom: 1.5rem;
             font-size: 0.85rem;
-            color: #fbbf24;
+            color: var(--warning-text);
         }
         .confirm-actions {
             display: flex;
@@ -481,9 +481,9 @@
         }
         .confirm-actions .btn { flex: 1; text-align: center; padding: 12px; font-size: 1rem; }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        /* A @keyframes spin INNEN ELTÁVOLÍTVA: a név a dokumentum egészére
+           globális, ezért ez a definíció árnyékolta a style.css-belit minden
+           pörgő elemen. A közös definíció ugyanazt adja (0% → 100%). */
     </style>
 </head>
 
@@ -491,18 +491,18 @@
     <div class="app-container">
         <aside class="sidebar">
             <div class="brand">
-                <a href="index.html" style="text-decoration:none;">
+                <a href="index.html">
                     <h1>EDTI Stúdió</h1>
                 </a>
-                <div id="userDisplay" style="font-size:0.8rem; color:#555; margin-top:4px;"></div>
+                <div id="userDisplay" class="ws-switch"></div>
             </div>
-            <nav style="margin-top: 2rem; flex: 1;">
-                <a href="index.html" class="btn btn-secondary"
-                    style="width:100%; text-align:left; margin-bottom: 0.5rem;">← Főoldal</a>
+            <nav class="sidebar-nav fill" aria-label="Fő navigáció">
+                <a href="index.html" class="btn btn-secondary btn-nav"
+                    >← Főoldal</a>
                 <div class="history-list">
-                    <div style="padding: 1rem; color: #6b7280; font-size: 0.9rem;">
-                        <p style="font-weight:600; margin-bottom:0.5rem;">🗂️ Intelligens Tallózás</p>
-                        <p style="font-size:0.82rem;">Böngészőből feltölthető mappa vagy ZIP. A szerver a kurzus videóit
+                    <div class="inbox-note">
+                        <p class="lead-line">🗂️ Intelligens Tallózás</p>
+                        <p class="text-xs">Böngészőből feltölthető mappa vagy ZIP. A szerver a kurzus videóit
                             feldolgozza, majd ugyanazzal a struktúrával ZIP-ben visszaadja.</p>
                     </div>
                 </div>
@@ -512,33 +512,33 @@
                 <div class="monitor-row">
                     <span class="monitor-label">CPU</span>
                     <div class="monitor-bar-bg">
-                        <div class="monitor-bar-fill" id="monCpu" style="width:0%"></div>
+                        <div class="monitor-bar-fill" id="monCpu"></div>
                     </div>
                     <span class="monitor-val" id="monCpuTxt">–</span>
                 </div>
                 <div class="monitor-row">
                     <span class="monitor-label">VRAM</span>
                     <div class="monitor-bar-bg">
-                        <div class="monitor-bar-fill" id="monVram" style="width:0%"></div>
+                        <div class="monitor-bar-fill" id="monVram"></div>
                     </div>
                     <span class="monitor-val" id="monVramTxt">–</span>
                 </div>
                 <div class="monitor-row">
                     <span class="monitor-label">RAM</span>
                     <div class="monitor-bar-bg">
-                        <div class="monitor-bar-fill" id="monRam" style="width:0%"></div>
+                        <div class="monitor-bar-fill" id="monRam"></div>
                     </div>
                     <span class="monitor-val" id="monRamTxt">–</span>
                 </div>
-                <div class="monitor-row" style="margin-top:2px;">
-                    <span class="monitor-label" style="min-width:64px; color:#555;">Törölhető</span>
-                    <span class="monitor-val" id="monStorageTxt" style="text-align:left; flex:1; color:#10b981; font-weight:600;">–</span>
+                <div class="monitor-row monitor-row-storage">
+                    <span class="monitor-label">Törölhető</span>
+                    <span class="monitor-val" id="monStorageTxt">–</span>
                 </div>
                 <div class="monitor-queue">Sor: <span id="monQueue">–</span> | Fut: <span id="monRunning">–</span></div>
             </div>
         </aside>
 
-        <main class="main-content" style="overflow-y: auto;">
+        <main class="main-content">
             <section class="card fade-in mode-gate-card">
                 <div class="mode-gate-intro">
                     <div class="mode-gate-copy">
@@ -574,8 +574,8 @@
 
             <div id="workspaceShell" class="workspace-shell" hidden>
             <!-- Upload Section -->
-            <section class="card fade-in" style="margin-bottom: 1.5rem;">
-                <h2 style="margin-bottom: 1rem;">🗂️ Intelligens Tallózás</h2>
+            <section class="card fade-in card-tight">
+                <h2>🗂️ Intelligens Tallózás</h2>
 
                 <div class="workspace-hero">
                     <div class="workspace-active-mode">
@@ -591,10 +591,10 @@
                 <div class="settings-row">
                     <div>
                         <label>Funkció</label>
-                        <div class="workspace-active-mode" style="padding:0.55rem 0.8rem; min-height:42px;">
-                            <span id="settingsModeLabel" style="font-weight:600; color:#fff;">—</span>
+                        <div class="workspace-active-mode">
+                            <span id="settingsModeLabel" class="mode-label">—</span>
                         </div>
-                        <select id="modeSelect" style="display:none;">
+                        <select id="modeSelect" class="hidden">
                             <option value="dub_full">🎙️ Szinkron (dub_full)</option>
                             <option value="subtitles_only">💬 Felirat (subtitles_only)</option>
                             <option value="transcript_only">📄 Leirat (transcript_only)</option>
@@ -617,8 +617,8 @@
                             <option value="mobile">Mobile</option>
                         </select>
                     </div>
-                    <div style="display:flex; align-items:end; padding-bottom:2px;">
-                        <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                    <div class="field-bottom">
+                        <label class="inline-check">
                             <input type="checkbox" id="loudnessCheck">
                             <span>Loudness</span>
                         </label>
@@ -629,25 +629,25 @@
                     <div class="icon">📦</div>
                     <div class="mode-indicator mode-dub_full" id="dropModeIndicator">🎙️ Szinkron mód</div>
                     <p><strong>Húzd ide a feldolgozandó mappát vagy ZIP fájlt</strong></p>
-                    <p style="font-size: 0.82rem; color: #6b7280; margin-top: 0.5rem;">Kizárólag böngészős feltöltés. Mappát is elfogadunk — automatikusan becsomagoljuk.</p>
-                    <input type="file" id="fileInput" style="display: none;" accept=".zip">
-                    <input type="file" id="folderInput" style="display: none;" webkitdirectory>
-                    <div style="display:flex; gap:0.75rem; margin-top: 1rem; justify-content:center;">
+                    <p class="dropzone-formats">Kizárólag böngészős feltöltés. Mappát is elfogadunk — automatikusan becsomagoljuk.</p>
+                    <input type="file" id="fileInput" hidden accept=".zip">
+                    <input type="file" id="folderInput" hidden webkitdirectory>
+                    <div class="row row-center">
                         <button class="btn btn-secondary" onclick="event.stopPropagation(); document.getElementById('fileInput').click();">📄 ZIP tallózás</button>
                         <button class="btn btn-secondary" onclick="event.stopPropagation(); document.getElementById('folderInput').click();">📁 Mappa tallózás</button>
                     </div>
                 </div>
 
-                <div id="zipProgress" style="display:none; margin-top:1rem;">
-                    <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px;">
-                        <div style="display:flex; align-items:center; gap:0.75rem;">
-                            <div class="spinner" style="width:20px;height:20px;border:2px solid #333;border-top-color:#6366f1;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
-                            <span id="zipProgressText" style="color:#9ca3af; font-size:0.85rem;">Mappa becsomagolása...</span>
+                <div id="zipProgress" class="hidden mt-4" aria-live="polite">
+                    <div class="upload-status">
+                        <div class="row">
+                            <div class="spinner"></div>
+                            <span id="zipProgressText" class="text-sm">Mappa becsomagolása...</span>
                         </div>
                     </div>
                 </div>
 
-                <div class="upload-progress-bar" id="uploadProgress">
+                <div class="upload-progress-bar" id="uploadProgress" aria-live="polite">
                     <div class="bar-bg">
                         <div class="bar-fill" id="uploadBar"></div>
                     </div>
@@ -657,12 +657,12 @@
 
             <!-- Course List Section -->
             <section class="card fade-in">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">
+                <div class="card-header">
                     <h2>📚 Feltöltések</h2>
                     <button class="btn btn-secondary" onclick="loadCourses()">🔄 Frissítés</button>
                 </div>
                 <div id="courseList">
-                    <div style="text-align:center; padding: 2rem; color: #6b7280;">Betöltés...</div>
+                    <div class="empty-history">Betöltés...</div>
                 </div>
             </section>
             </div>
@@ -670,9 +670,10 @@
     </div>
 
     <!-- ====== Confirm Modal ====== -->
-    <div id="confirmModal">
-        <div class="confirm-box">
-            <h2>📋 Tallózás Megerősítése</h2>
+    <div id="confirmModal" class="confirm-modal" role="dialog" aria-modal="true"
+         aria-labelledby="confirmTitle">
+        <div class="confirm-modal-box confirm-box">
+            <h3 id="confirmTitle">📋 Tallózás Megerősítése</h3>
             <div class="confirm-summary">
                 <div class="confirm-row">
                     <span class="label">Fájl:</span>
@@ -702,14 +703,18 @@
             <div class="confirm-warning">
                 ⚠️ Kérlek ellenőrizd a beállításokat! Az indítás után a feltöltött anyag összes videójára ezek lesznek érvényesek.
             </div>
-            <div class="confirm-actions">
+            <div class="actions">
                 <button class="btn btn-secondary" onclick="hideConfirm()">Mégse</button>
                 <button class="btn btn-accent" id="cfmStartBtn" onclick="confirmAndUpload()">🚀 Indítás</button>
             </div>
         </div>
     </div>
 
-    <script src="shared.js?v=11"></script>
+    <script src="shared.js?v=fc5bbe1843"></script>
+    <!-- a darabolt feltöltéshez; a dedup.js az upload_queue.js ELŐTT kell
+         (az UploadQueue a szignatúrát a DedupUpload-dal számolja) -->
+    <script src="dedup.js?v=38521c9819"></script>
+    <script src="upload_queue.js?v=e5d8ea7fb0"></script>
     <script>
         const API = 'api/course';
         const MODE_STORAGE_KEY = 'intelligentBrowse.mode';
@@ -883,6 +888,19 @@
             });
         }
 
+        /** A mappa ZIP-je (zip_store.js): a fejlécekből és az eredeti fájlokra
+         *  mutató hivatkozásokból áll össze, a tartalmat csak a CRC-32-höz
+         *  olvassa végig, szeletenként — a JSZip minden fájlt egészében
+         *  beolvasott, és a kész ZIP-et is a memóriában gyűjtötte, így egy
+         *  több GB-os kurzusmappánál a lap memóriája volt a korlát. (UI-33) */
+        async function buildFolderZip(entries, zipText) {
+            return ZipStore.buildStoreZip(entries, {
+                onProgress: (read, total) => {
+                    zipText.textContent = `ZIP összeállítása: ${total ? Math.round(read / total * 100) : 100}%`;
+                },
+            });
+        }
+
         /** Zip a dropped folder (webkitGetAsEntry) */
         async function zipFolderEntry(dirEntry) {
             const zipProg = document.getElementById('zipProgress');
@@ -900,19 +918,9 @@
 
                 zipText.textContent = `${fileEntries.length} fájl becsomagolása ZIP-be...`;
 
-                const zip = new JSZip();
-                const rootPrefix = dirEntry.fullPath.startsWith('/') ? dirEntry.fullPath.substring(1) : dirEntry.fullPath;
-                for (const fe of fileEntries) {
-                    let arcPath = fe.path;
-                    // Remove leading slash
-                    if (arcPath.startsWith('/')) arcPath = arcPath.substring(1);
-                    zip.file(arcPath, fe.file);
-                }
-
-                zipText.textContent = 'ZIP tömörítés...';
-                const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 1 } }, (meta) => {
-                    zipText.textContent = `ZIP tömörítés: ${Math.round(meta.percent)}%`;
-                });
+                // a vezető perjel nélkül: „Kurzus/01 Bevezetés.mp4"
+                const blob = await buildFolderZip(
+                    fileEntries.map(fe => ({ path: fe.path.replace(/^\/+/, ''), file: fe.file })), zipText);
 
                 zipProg.style.display = 'none';
 
@@ -934,9 +942,8 @@
             zipText.textContent = `${files.length} fájl becsomagolása ZIP-be...`;
 
             try {
-                const zip = new JSZip();
                 let folderName = 'course';
-
+                const entries = [];
                 for (const f of files) {
                     // webkitRelativePath: "folderName/sub/file.mp4"
                     const relPath = f.webkitRelativePath || f.name;
@@ -944,13 +951,9 @@
                         const parts = relPath.split('/');
                         if (parts.length > 1) folderName = parts[0];
                     }
-                    zip.file(relPath, f);
+                    entries.push({ path: relPath, file: f });
                 }
-
-                zipText.textContent = 'ZIP tömörítés...';
-                const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 1 } }, (meta) => {
-                    zipText.textContent = `ZIP tömörítés: ${Math.round(meta.percent)}%`;
-                });
+                const blob = await buildFolderZip(entries, zipText);
 
                 zipProg.style.display = 'none';
                 folderInput.value = '';
@@ -989,10 +992,11 @@
             document.getElementById('cfmLoud').textContent = loudVal ? 'Igen' : 'Nem';
 
             // Color the mode line for extra visibility
+            // A mód színét a CSS adja (.mode-text + .mode-<érték>), nem egy
+            // külön JS-térkép — az korábban a FELCSERÉLT régi palettát vitte
+            // tovább, miközben a CSS-t már javítottuk.
             const cfmModeEl = document.getElementById('cfmMode');
-            cfmModeEl.className = 'value';
-            const modeColors = { dub_full: '#818cf8', subtitles_only: '#60a5fa', transcript_only: '#fbbf24', intro_outro: '#34d399' };
-            cfmModeEl.style.color = modeColors[modeVal] || '#fff';
+            cfmModeEl.className = 'value mode-text mode-' + modeVal;
 
             document.getElementById('confirmModal').classList.add('show');
         }
@@ -1022,51 +1026,24 @@
             const bar = document.getElementById('uploadBar');
             const text = document.getElementById('uploadText');
             progressDiv.style.display = 'block';
+            bar.classList.remove('is-done', 'is-error');
             bar.style.width = '0%';
             text.textContent = `Feltöltés: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)...`;
 
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('mode', modeSelect.value);
-            formData.append('language', document.getElementById('langSelect').value);
-            formData.append('preset', document.getElementById('presetSelect').value);
-            formData.append('loudness', document.getElementById('loudnessCheck').checked ? 'true' : 'false');
-
-            const owner = getOwner();
-            if (owner) formData.append('owner', owner);
+            const settings = {
+                mode: modeSelect.value,
+                language: document.getElementById('langSelect').value,
+                preset: document.getElementById('presetSelect').value,
+                loudness: document.getElementById('loudnessCheck').checked,
+            };
 
             try {
-                // Use XMLHttpRequest for progress tracking
-                const result = await new Promise((resolve, reject) => {
-                    const xhr = new XMLHttpRequest();
-                    xhr.open('POST', `${API}/upload`);
-
-                    xhr.upload.addEventListener('progress', (e) => {
-                        if (e.lengthComputable) {
-                            const pct = Math.round((e.loaded / e.total) * 100);
-                            bar.style.width = pct + '%';
-                            text.textContent = `Feltöltés: ${pct}% (${(e.loaded / 1024 / 1024).toFixed(1)} / ${(e.total / 1024 / 1024).toFixed(1)} MB)`;
-                        }
-                    });
-
-                    xhr.onload = () => {
-                        if (xhr.status >= 200 && xhr.status < 300) {
-                            resolve(JSON.parse(xhr.responseText));
-                        } else {
-                            try {
-                                const err = JSON.parse(xhr.responseText);
-                                reject(new Error(err.detail || `HTTP ${xhr.status}`));
-                            } catch {
-                                reject(new Error(`HTTP ${xhr.status}`));
-                            }
-                        }
-                    };
-                    xhr.onerror = () => reject(new Error('Network error'));
-                    xhr.send(formData);
-                });
+                const result = (window.UploadQueue && window.DedupUpload && DedupUpload.computeSignature)
+                    ? await uploadZipChunked(file, settings, bar, text)
+                    : await uploadZipSingle(file, settings, bar, text);
 
                 bar.style.width = '100%';
-                bar.style.background = '#10b981';
+                bar.classList.add('is-done');
                 text.textContent = `✅ ${result.video_count} videó besorolva feldolgozásra!`;
 
                 // Reload list and start polling
@@ -1075,15 +1052,96 @@
                 // Reset after a few seconds
                 setTimeout(() => {
                     progressDiv.style.display = 'none';
-                    bar.style.background = '';
+                    bar.classList.remove('is-done', 'is-error');
                     fileInput.value = '';
                 }, 4000);
 
             } catch (err) {
                 bar.style.width = '100%';
-                bar.style.background = '#ef4444';
-                text.textContent = `❌ Hiba: ${err.message}`;
+                // Osztály, nem inline szín: a hibaág korábban SOHA nem állt
+                // vissza (csak a sikerág 4 mp-es timeoutja törölte az inline
+                // hátteret), ezért a következő feltöltés piros sávval indult.
+                bar.classList.remove('is-done');
+                bar.classList.add('is-error');
+                // Az alagút (Cloudflare) ~100 s után 524-gyel feladja a
+                // választ, a szerver viszont a nagy ZIP kicsomagolását ettől
+                // még befejezi — ilyenkor a kurzus pár perc múlva megjelenik.
+                if (/HTTP (502|504|524)\b/.test(err.message)) {
+                    text.textContent = '⏳ A ZIP megérkezett, a szerver még kicsomagolja — a kurzus hamarosan megjelenik a listában.';
+                    [15, 45, 90, 180].forEach(sec => setTimeout(loadCourses, sec * 1000));
+                } else {
+                    text.textContent = `❌ Hiba: ${err.message}`;
+                }
             }
+        }
+
+        /** Darabolt feltöltés (5 MB-os darabok, /api/batch/upload/*, 'course_zip'
+         *  cél). A lap eddig egyetlen kérésben küldte a ZIP-et — a Cloudflare
+         *  ~100 MB fölött eldobja, így egy valódi (videós) kurzus az alagúton
+         *  át nem volt feltölthető. (Funkció-ellenőrzés, 9/12.) */
+        function uploadZipChunked(file, settings, bar, text) {
+            return new Promise((resolve, reject) => {
+                const q = new UploadQueue({
+                    maxConcurrent: 1,
+                    onProgress: ({ percent, sentBytes, totalBytes, state }) => {
+                        if (state === 'uploading') {
+                            bar.style.width = percent + '%';
+                            text.textContent = `Feltöltés: ${percent}% (${(sentBytes / 1024 / 1024).toFixed(1)} / ${(totalBytes / 1024 / 1024).toFixed(1)} MB)`;
+                        } else if (state === 'hashing' || state === 'init') {
+                            text.textContent = `Feltöltés előkészítése: ${file.name}...`;
+                        } else if (state === 'finalizing') {
+                            bar.style.width = '100%';
+                            text.textContent = '📦 Kicsomagolás és besorolás a szerveren...';
+                        }
+                    },
+                    onComplete: (r) => resolve(r.response || {}),
+                    onError: ({ error }) => reject(new Error(error)),
+                });
+                q.enqueue(file, Object.assign({ purpose: 'course_zip' }, settings));
+            });
+        }
+
+        /** Tartalék: egyben (ha az UploadQueue nem töltődött be) — az alagúton
+         *  át ~100 MB fölött 413-at kap, ezért a darabolt út az elsődleges. */
+        function uploadZipSingle(file, settings, bar, text) {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('mode', settings.mode);
+            formData.append('language', settings.language);
+            formData.append('preset', settings.preset);
+            formData.append('loudness', settings.loudness ? 'true' : 'false');
+
+            const owner = getOwner();
+            if (owner) formData.append('owner', owner);
+
+            // Use XMLHttpRequest for progress tracking
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', `${API}/upload`);
+
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const pct = Math.round((e.loaded / e.total) * 100);
+                        bar.style.width = pct + '%';
+                        text.textContent = `Feltöltés: ${pct}% (${(e.loaded / 1024 / 1024).toFixed(1)} / ${(e.total / 1024 / 1024).toFixed(1)} MB)`;
+                    }
+                });
+
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve(JSON.parse(xhr.responseText));
+                    } else {
+                        try {
+                            const err = JSON.parse(xhr.responseText);
+                            reject(new Error(err.detail || `HTTP ${xhr.status}`));
+                        } catch {
+                            reject(new Error(`HTTP ${xhr.status}`));
+                        }
+                    }
+                };
+                xhr.onerror = () => reject(new Error('Network error'));
+                xhr.send(formData);
+            });
         }
 
         // ============================================================
@@ -1097,7 +1155,7 @@
                 const courses = data.courses || [];
 
                 if (courses.length === 0) {
-                    container.innerHTML = '<div style="text-align:center; padding: 2rem; color: #6b7280;">Még nincs feltöltött kurzus.</div>';
+                    container.innerHTML = '<div class="empty-history">Még nincs feltöltött kurzus.</div>';
                     return;
                 }
 
@@ -1115,7 +1173,7 @@
                     }
                 }
             } catch (err) {
-                container.innerHTML = `<div style="color:#ef4444; padding:1rem;">Hiba: ${err.message}</div>`;
+                container.innerHTML = `<div class="empty-history is-error">Hiba: ${err.message}</div>`;
             }
         }
 
@@ -1142,6 +1200,8 @@
             const done = c.done_count || 0;
             const total = c.video_count || 0;
             const errors = c.error_count || 0;
+            // a batch-lapról megszakított / törölt tétel (9/12)
+            const canceled = c.canceled_count || 0;
             const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
             let html = `
@@ -1149,14 +1209,14 @@
                     <h3>📁 ${escHtml(c.original_zip_name || 'Kurzus')}</h3>
                     <span class="badge ${statusBadgeClass[c.status] || 'badge-pending'}">${statusLabels[c.status] || c.status}</span>
                 </div>
-                <div style="font-size:0.82rem; color:#9ca3af; margin-bottom:0.5rem;">
+                <div class="course-meta">
                     ${modeLabels[c.mode] || c.mode} · ${total} videó · ${c.created_at || ''}
                 </div>
                 <div class="course-progress">
                     <div class="course-progress-fill" style="width:${pct}%"></div>
                 </div>
-                <div style="font-size:0.8rem; color:#6b7280; margin-bottom:0.5rem;">
-                    ${done}/${total} kész${errors > 0 ? ` · <span style="color:#ef4444">${errors} hiba</span>` : ''}
+                <div class="course-meta is-muted">
+                    ${done}/${total} kész${errors > 0 ? ` · <span class="text-danger">${errors} hiba</span>` : ''}${canceled > 0 ? ` · ${canceled} megszakítva` : ''}
                 </div>
             `;
 
@@ -1164,10 +1224,12 @@
             if (c.videos && c.videos.length > 0) {
                 html += '<div class="video-list">';
                 for (const v of c.videos) {
-                    const icon = v.status === 'done' ? '✅' : v.status === 'error' ? '❌' : v.status === 'running' ? '⏳' : '⏸️';
+                    const icon = v.status === 'done' ? '✅' : v.status === 'error' ? '❌' : v.status === 'running' ? '⏳' : v.status === 'canceled' ? '⛔' : '⏸️';
                     const detail = v.progress != null && v.status === 'running' ? `${v.progress}%` : '';
+                    // a hiba / megszakítás oka eddig sehol nem látszott, csak az ikon
+                    const why = (v.status === 'error' || v.status === 'canceled') && v.error ? ` title="${escHtml(v.error)}"` : '';
                     html += `
-                        <div class="video-item">
+                        <div class="video-item"${why}>
                             <span class="video-status-icon">${icon}</span>
                             <span class="video-path">${escHtml(v.relative_path)}</span>
                             <span class="video-detail">${detail}</span>
@@ -1178,12 +1240,12 @@
             }
 
             // Action buttons
-            html += '<div style="display:flex; gap:0.75rem; margin-top:1rem;">';
+            html += '<div class="course-card-actions">';
             if (c.status === 'done' || c.status === 'done_with_errors') {
                 html += `<button class="btn btn-accent" onclick="downloadCourse('${c.course_id}')">⬇️ Letöltés ZIP</button>`;
             }
             html += `<button class="btn btn-secondary" onclick="refreshCourseStatus('${c.course_id}')">🔄</button>`;
-            html += `<button class="btn btn-secondary" style="color:#ef4444; border-color:#ef4444;" onclick="deleteCourse('${c.course_id}')">🗑️ Törlés</button>`;
+            html += `<button class="btn btn-secondary btn-danger-quiet" onclick="deleteCourse('${c.course_id}')">🗑️ Törlés</button>`;
             html += '</div>';
 
             return html;
@@ -1252,10 +1314,10 @@
         // ============================================================
         // UTILS
         // ============================================================
+        // Az idézőjelet is: attribútumba (title) is kerül (9/12) — a régi
+        // textContent→innerHTML trükk csak a <, >, & jelet escape-elte.
         function escHtml(str) {
-            const div = document.createElement('div');
-            div.textContent = str || '';
-            return div.innerHTML;
+            return str == null ? '' : String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
         }
 
         // ============================================================

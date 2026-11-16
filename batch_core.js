@@ -32,11 +32,6 @@ function initBatchPage(mode) {
     if (typeof applyOwnerDisplay === 'function') applyOwnerDisplay();
     if (typeof startMonitor === 'function') startMonitor();
 
-    const owner = getOwner();
-    if (owner && document.getElementById('userModal')) {
-        document.getElementById('userModal').classList.remove('show');
-    }
-
     // Build the upload queue (must come before any drop-handling).
     _initUploadQueue();
     _setupConcurrencySlider();
@@ -198,7 +193,7 @@ function _initUploadQueue() {
             const statusDiv = document.getElementById('uploadStatus');
             if (!statusDiv) return;
             if (q.active === 0 && q.queued === 0) return;  // leave the final message alone
-            statusDiv.style.display = 'block';
+            statusDiv.classList.remove('hidden');
             statusDiv.innerHTML = `<p>Feltöltés: <b>${q.active}</b> fut, <b>${q.queued}</b> vár (max párhuzamosság: ${q.max})</p>`;
         },
     });
@@ -303,15 +298,13 @@ function setupDropZone() {
     // Highlight drop area
     ['dragenter', 'dragover'].forEach(eventName => {
         dropZone.addEventListener(eventName, () => {
-            dropZone.style.borderColor = '#6366f1';
-            dropZone.style.background = 'rgba(99, 102, 241, 0.1)';
+            dropZone.classList.add('dragover');
         }, false);
     });
 
     ['dragleave', 'drop'].forEach(eventName => {
         dropZone.addEventListener(eventName, () => {
-            dropZone.style.borderColor = '';
-            dropZone.style.background = '';
+            dropZone.classList.remove('dragover');
         }, false);
     });
 
@@ -355,7 +348,7 @@ async function handleFiles(files) {
 
     const statusDiv = document.getElementById('uploadStatus');
     if (statusDiv) {
-        statusDiv.style.display = 'block';
+        statusDiv.classList.remove('hidden');
         statusDiv.innerHTML = `<p>Feltöltés sorba állítva: ${files.length} fájl…</p>`;
     }
 
@@ -419,25 +412,13 @@ function toggleMyJobs() {
     const wrap = document.getElementById('ownerFilterWrap');
     if (!btn) return;
 
+    btn.classList.toggle('active', myJobsActive);
+    btn.setAttribute('aria-pressed', String(myJobsActive));
+    if (wrap) wrap.classList.toggle('is-disabled', myJobsActive);
     if (myJobsActive) {
-        btn.style.background = '#10b981';
-        btn.style.color = '#fff';
-        btn.style.borderColor = '#10b981';
-        if (wrap) {
-            wrap.style.opacity = '0.4';
-            wrap.style.pointerEvents = 'none';
-        }
         ownerFilterValue = '';
         const sel = document.getElementById('ownerFilter');
         if (sel) sel.value = '';
-    } else {
-        btn.style.background = '#222';
-        btn.style.color = '#9ca3af';
-        btn.style.borderColor = '#6b7280';
-        if (wrap) {
-            wrap.style.opacity = '1';
-            wrap.style.pointerEvents = 'auto';
-        }
     }
     loadBatchStatus();
 }
@@ -448,9 +429,8 @@ function applyOwnerFilter(value) {
         myJobsActive = false;
         const btn = document.getElementById('myJobsBtn');
         if (btn) {
-            btn.style.background = '#222';
-            btn.style.color = '#9ca3af';
-            btn.style.borderColor = '#6b7280';
+            btn.classList.remove('active');
+            btn.setAttribute('aria-pressed', 'false');
         }
     }
     loadBatchStatus();
@@ -552,7 +532,7 @@ function renderBatchList(items) {
 
     if (items.length === 0 && uploadKeyed.length === 0) {
         // Empty-state — közvetlenül cseréljük az innerHTML-t, nincs lista-diff.
-        container.innerHTML = `<div class="empty-history" style="text-align:center; padding: 2rem;">${myJobsActive ? 'Nincs saját feladatod.' : 'A sor üres. Tölts fel fájlokat!'}</div>`;
+        container.innerHTML = `<div class="empty-history">${myJobsActive ? 'Nincs saját feladatod.' : 'A sor üres. Tölts fel fájlokat!'}</div>`;
         return;
     }
 
@@ -563,7 +543,7 @@ function renderBatchList(items) {
         const status = item.job_status;
 
         if (item.status === 'running') {
-            actionBtn = `<button class="btn btn-secondary" style="font-size:0.7rem; padding:4px 8px; color:#ef4444; border-color:#ef4444;" onclick="cancelItem(${item.id})">Leállítás</button>`;
+            actionBtn = `<button class="btn btn-secondary btn-xs btn-danger-quiet" onclick="cancelItem(${item.id})">Leállítás</button>`;
             const isErrorStage = !status || status.stage === 'error' || status.stage === 'cancelled' || status.stage === 'canceled';
             if (!isErrorStage) {
                 const stageLabel = (typeof formatStageHu === 'function') ? formatStageHu(status.stage) : status.stage;
@@ -573,22 +553,21 @@ function renderBatchList(items) {
                 // Mind a backend stuck_job_watchdog mind ez a kliens-render
                 // ugyanazt a 30 perces küszöböt használja.
                 const stuckHtml = (typeof formatStuckHtml === 'function') ? formatStuckHtml(status && status.updated_at) : '';
-                detailedStatus = `<div style="color:#6366f1; font-weight:600; margin-top:0.25rem;">${stageLabel}: ${status.detail || ''} (${status.progress}%)${etaHtml}${stuckHtml}</div>`;
-                progressBar = `<div style="height:4px; width:100%; background:#333; margin-top:0.5rem; border-radius:2px;"><div style="height:100%; width:${status.progress}%; background:#6366f1; transition:width 0.5s;"></div></div>`;
+                detailedStatus = `<div class="batch-note tone-progress">${stageLabel}: ${status.detail || ''} (${status.progress}%)${etaHtml}${stuckHtml}</div>`;
+                progressBar = `<div class="batch-progress"><div class="batch-progress-fill" style="width:${status.progress}%"></div></div>`;
             } else {
-                detailedStatus = `<div style="color:#ef4444; font-weight:600; margin-top:0.25rem;">⚠️ Beragadt</div>`;
+                detailedStatus = `<div class="batch-note tone-danger">⚠️ Beragadt</div>`;
             }
         } else if (item.status === 'done') {
             // A "Mentve az Exports mappába" sor mellé inline ✅, ha bármi már
             // le lett töltve. A .saved-label class hagy a bulk_download.js-nek
             // hozzá-illeszteni a pipát, ha a user a render UTÁN tölt le.
             const savedMark = (Object.keys(dlState).length > 0) ? ' <span class="saved-mark" title="Letöltve">✅</span>' : '';
-            detailedStatus = `<div class="saved-label" style="color:#10b981; font-size:0.8rem; margin-top:0.25rem;">Mentve az Exports mappába${savedMark}</div>`;
+            detailedStatus = `<div class="saved-label batch-note tone-success is-sm">Mentve az Exports mappába${savedMark}</div>`;
             let baseName = item.original_filename;
             const lastDot = baseName.lastIndexOf('.'); 
             if (lastDot !== -1) baseName = baseName.substring(0, lastDot);
             
-            const btnStyle = "font-size:0.7rem; padding:4px 8px; text-decoration:none; margin-right:4px;";
             
             // data-job-id + data-dltype attribútumokat is rakunk minden
             // letöltő linkre, hogy a tömeges letöltő (downloadAllVisible)
@@ -605,9 +584,9 @@ function renderBatchList(items) {
                     ? QuickCombo.buttonHtml({ jobId: item.job_id, sourceNodeType: 'dub', comboType: 'intro_outro' })
                     : '';
                 actionBtn = `
-                    <div style="display:flex; align-items:center;">
-                        <a href="${videoUrl}" class="btn btn-accent ${dlState.video ? 'downloaded' : ''}" style="${btnStyle}" download="${baseName}.mp4" data-job-id="${item.job_id}" data-dltype="video" onclick="markAsDownloaded('${item.job_id}', 'video')">⬇ Videó ${dlState.video ? '✅' : ''}</a>
-                        <a href="${audioUrl}" class="btn btn-secondary ${dlState.audio ? 'downloaded' : ''}" style="${btnStyle}" download="${baseName}_voice.wav" data-job-id="${item.job_id}" data-dltype="audio" onclick="markAsDownloaded('${item.job_id}', 'audio')">🎙️ Hang ${dlState.audio ? '✅' : ''}</a>
+                    <div class="batch-item-action-row">
+                        <a href="${videoUrl}" class="btn btn-accent ${dlState.video ? 'downloaded' : ''}" download="${esc(baseName)}.mp4" data-job-id="${item.job_id}" data-dltype="video" onclick="markAsDownloaded('${item.job_id}', 'video')">⬇ Videó ${dlState.video ? '✅' : ''}</a>
+                        <a href="${audioUrl}" class="btn btn-secondary ${dlState.audio ? 'downloaded' : ''}" download="${esc(baseName)}_voice.wav" data-job-id="${item.job_id}" data-dltype="audio" onclick="markAsDownloaded('${item.job_id}', 'audio')">🎙️ Hang ${dlState.audio ? '✅' : ''}</a>
                         ${qcBtn}
                         ${deleteBtnHtml}
                     </div>`;
@@ -620,10 +599,10 @@ function renderBatchList(items) {
                 const srtUrl = `api/download/${item.job_id}/hu.srt?download_name=${encodeURIComponent(baseName + ".srt")}`;
                 const jsonUrl = `api/download/${item.job_id}/segments.json?download_name=${encodeURIComponent(baseName + ".json")}`;
                 actionBtn = `
-                    <div style="display:flex; align-items:center;">
-                        <a href="${txtUrl}" class="btn btn-secondary ${dlState.txt ? 'downloaded' : ''}" style="${btnStyle}" download="${baseName}.txt" data-job-id="${item.job_id}" data-dltype="txt" onclick="markAsDownloaded('${item.job_id}', 'txt')">⬇ TXT ${dlState.txt ? '✅' : ''}</a>
-                        <a href="${srtUrl}" class="btn btn-secondary ${dlState.srt ? 'downloaded' : ''}" style="${btnStyle}" download="${baseName}.srt" data-job-id="${item.job_id}" data-dltype="srt" onclick="markAsDownloaded('${item.job_id}', 'srt')">📝 SRT ${dlState.srt ? '✅' : ''}</a>
-                        <a href="${jsonUrl}" class="btn btn-secondary ${dlState.json ? 'downloaded' : ''}" style="${btnStyle}" download="${baseName}.json" data-job-id="${item.job_id}" data-dltype="json" onclick="markAsDownloaded('${item.job_id}', 'json')">{} JSON ${dlState.json ? '✅' : ''}</a>
+                    <div class="batch-item-action-row">
+                        <a href="${txtUrl}" class="btn btn-secondary ${dlState.txt ? 'downloaded' : ''}" download="${esc(baseName)}.txt" data-job-id="${item.job_id}" data-dltype="txt" onclick="markAsDownloaded('${item.job_id}', 'txt')">⬇ TXT ${dlState.txt ? '✅' : ''}</a>
+                        <a href="${srtUrl}" class="btn btn-secondary ${dlState.srt ? 'downloaded' : ''}" download="${esc(baseName)}.srt" data-job-id="${item.job_id}" data-dltype="srt" onclick="markAsDownloaded('${item.job_id}', 'srt')">📝 SRT ${dlState.srt ? '✅' : ''}</a>
+                        <a href="${jsonUrl}" class="btn btn-secondary ${dlState.json ? 'downloaded' : ''}" download="${esc(baseName)}.json" data-job-id="${item.job_id}" data-dltype="json" onclick="markAsDownloaded('${item.job_id}', 'json')">{} JSON ${dlState.json ? '✅' : ''}</a>
                         ${deleteBtnHtml}
                     </div>`;
             } else if (currentBatchMode === 'intro_outro') {
@@ -632,18 +611,18 @@ function renderBatchList(items) {
                 // on the original upload name.
                 const videoUrl = `api/intro_outro/download/${item.job_id}`;
                 actionBtn = `
-                    <div style="display:flex; align-items:center;">
-                        <a href="${videoUrl}" class="btn btn-accent ${dlState.video ? 'downloaded' : ''}" style="${btnStyle}" download="${baseName}_intro_outro.mp4" data-job-id="${item.job_id}" data-dltype="video" onclick="markAsDownloaded('${item.job_id}', 'video')">⬇ Videó ${dlState.video ? '✅' : ''}</a>
+                    <div class="batch-item-action-row">
+                        <a href="${videoUrl}" class="btn btn-accent ${dlState.video ? 'downloaded' : ''}" download="${esc(baseName)}_intro_outro.mp4" data-job-id="${item.job_id}" data-dltype="video" onclick="markAsDownloaded('${item.job_id}', 'video')">⬇ Videó ${dlState.video ? '✅' : ''}</a>
                         ${deleteBtnHtml}
                     </div>`;
             }
         } else if (item.status === 'queued') {
-            actionBtn = `<button class="btn btn-secondary" style="font-size:0.7rem; padding:4px 8px;" onclick="cancelItem(${item.id})">Mégse</button>`;
+            actionBtn = `<button class="btn btn-secondary btn-xs" onclick="cancelItem(${item.id})">Mégse</button>`;
         } else if (item.status === 'error' || item.status === 'canceled' || item.status === 'cancelled') {
-            actionBtn = `<div style="display:flex;"><button class="btn btn-secondary" style="font-size:0.7rem; padding:4px 8px;" onclick="retryItem(${item.id})">Újra</button>${deleteBtnHtml}</div>`;
+            actionBtn = `<div class="batch-item-action-row"><button class="btn btn-secondary btn-xs" onclick="retryItem(${item.id})">Újra</button>${deleteBtnHtml}</div>`;
         }
 
-        const badgeHtml = item.owner ? `<span style="font-size:0.7rem; font-weight:400; background:rgba(99,102,241,0.15); color:#a5b4fc; border:1px solid rgba(99,102,241,0.3); border-radius:4px; padding:1px 7px;">👤 ${esc(item.owner)}</span>` : '';
+        const badgeHtml = item.owner ? `<span class="badge badge-soft">👤 ${esc(item.owner)}</span>` : '';
 
         // Render-signature: a state-ből minden olyan mező, ami befolyásolja
         // a megjelenítést. Ha a sig új-régi egyezik, a smooth-renderer
@@ -665,19 +644,19 @@ function renderBatchList(items) {
             key: 'batch-' + item.id,
             html: `
         <div class="batch-item status-${item.status} ${dlCount > 0 ? 'downloaded' : ''}" data-list-key="batch-${item.id}" data-render-sig="${sig}">
-            <div class="batch-info" style="flex:1;">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                    <h4 style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+            <div class="batch-info">
+                <div class="batch-row-head">
+                    <h4 class="batch-title">
                         ${esc(item.original_filename)}
                         ${badgeHtml}
                     </h4>
-                    <div style="margin-left:1rem;">${actionBtn}</div>
+                    <div class="batch-row-actions">${actionBtn}</div>
                 </div>
                 <div class="batch-meta">${item.created_at ? `<span title="Feltöltve">🕐 ${_fmtTimestamp(item.created_at)}</span> · ` : ''}Állapot: ${(typeof formatStatusHu === 'function') ? formatStatusHu(item.status) : item.status} · Próbálkozás: ${item.attempts}</div>
-                ${item.error_message ? `<div style="color:#ef4444; font-size:0.8rem; margin-top:0.25rem;">${esc(item.error_message)}</div>` : ''}
+                ${item.error_message ? `<div class="batch-note tone-danger is-sm">${esc(item.error_message)}</div>` : ''}
                 ${detailedStatus}${progressBar}
             </div>
-            <div class="batch-actions" style="margin-left:1rem; font-size:1.5rem;">
+            <div class="batch-actions">
                 ${item.status === 'done' ? '✅' : ''}${item.status === 'running' ? '<span class="spin">⏳</span>' : ''}${item.status === 'error' ? '❌' : ''}${item.status === 'queued' ? '🕒' : ''}${(item.status === 'canceled' || item.status === 'cancelled') ? '🚫' : ''}
             </div>
         </div>`,
@@ -710,37 +689,36 @@ function _renderUploadingRow(token, u) {
     let statusClass = 'queued';
     let statusLabel = 'Sorban áll';
     let detailHtml = '';
-    let progressColor = '#6366f1';
 
     if (u.state === 'uploading') {
         statusClass = 'running';
         statusLabel = 'Feltöltés';
         const mb = (u.sentBytes / (1024 * 1024)).toFixed(1);
         const totalMb = (u.totalBytes / (1024 * 1024)).toFixed(1);
-        detailHtml = `<div style="color:#6366f1; font-weight:600; margin-top:0.25rem;">Feltöltés: ${mb} / ${totalMb} MB (${pct}%)</div>
-                      <div style="height:4px; width:100%; background:#333; margin-top:0.5rem; border-radius:2px;">
-                          <div style="height:100%; width:${pct}%; background:${progressColor}; transition:width 0.2s;"></div>
+        detailHtml = `<div class="batch-note tone-progress">Feltöltés: ${mb} / ${totalMb} MB (${pct}%)</div>
+                      <div class="batch-progress">
+                          <div class="batch-progress-fill" style="width:${pct}%"></div>
                       </div>`;
     } else if (u.state === 'hashing') {
         statusClass = 'queued';
         statusLabel = 'Hash számítása';
-        detailHtml = `<div style="color:#9a9ac0; font-weight:600; margin-top:0.25rem;">⌛ Aláírás számítása (duplikátum-ellenőrzés)…</div>`;
+        detailHtml = `<div class="batch-note tone-muted">⌛ Aláírás számítása (duplikátum-ellenőrzés)…</div>`;
     } else if (u.state === 'finalizing') {
         statusClass = 'running';
         statusLabel = 'Befejezés';
-        detailHtml = `<div style="color:#a78bfa; font-weight:600; margin-top:0.25rem;">⏳ Szerver-oldali összerakás folyik…</div>`;
+        detailHtml = `<div class="batch-note tone-muted">⏳ Szerver-oldali összerakás folyik…</div>`;
     } else if (u.state === 'skipped') {
         statusClass = 'done';
         statusLabel = 'Már létezett';
-        detailHtml = `<div style="color:#10b981; font-weight:600; margin-top:0.25rem;">✓ Ezt a fájlt már feltöltötted — kihagytuk.</div>`;
+        detailHtml = `<div class="batch-note tone-success">✓ Ezt a fájlt már feltöltötted — kihagytuk.</div>`;
     } else if (u.state === 'queued') {
         statusClass = 'queued';
         statusLabel = 'Sorban áll';
-        detailHtml = `<div style="color:#9a9ac0; font-weight:600; margin-top:0.25rem;">… várakozik az indításra (csúszka korlát)</div>`;
+        detailHtml = `<div class="batch-note tone-muted">… várakozik az indításra (csúszka korlát)</div>`;
     } else if (u.state === 'error') {
         statusClass = 'error';
         statusLabel = 'Feltöltési hiba';
-        detailHtml = `<div style="color:#ef4444; font-weight:600; margin-top:0.25rem;">❌ ${esc(u.error || 'Ismeretlen hiba')}</div>`;
+        detailHtml = `<div class="batch-note tone-danger">❌ ${esc(u.error || 'Ismeretlen hiba')}</div>`;
     }
 
     // Render-signature: az upload-state összes releváns mezője. A pct 1%-onkénti
@@ -749,17 +727,17 @@ function _renderUploadingRow(token, u) {
     const sig = 'u:' + u.state + ':' + pct + (u.error ? ':E' : '');
     return `
     <div class="batch-item status-${statusClass}" data-upload-token="${token}" data-list-key="upload-${token}" data-render-sig="${sig}">
-        <div class="batch-info" style="flex:1;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                <h4 style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+        <div class="batch-info">
+            <div class="batch-row-head">
+                <h4 class="batch-title">
                     ${esc(u.name)}
-                    <span style="font-size:0.7rem; font-weight:400; background:rgba(245,158,11,0.15); color:#fcd34d; border:1px solid rgba(245,158,11,0.3); border-radius:4px; padding:1px 7px;">⬆ Feltöltés alatt</span>
+                    <span class="badge badge-warning badge-soft">⬆ Feltöltés alatt</span>
                 </h4>
             </div>
             <div class="batch-meta">Állapot: ${statusLabel}</div>
             ${detailHtml}
         </div>
-        <div class="batch-actions" style="margin-left:1rem; font-size:1.5rem;">
+        <div class="batch-actions">
             ${(u.state === 'uploading' || u.state === 'finalizing' || u.state === 'hashing') ? '<span class="spin">⏳</span>' : ''}${u.state === 'queued' ? '🕒' : ''}${u.state === 'skipped' ? '✅' : ''}${u.state === 'error' ? '❌' : ''}
         </div>
     </div>`;
@@ -786,13 +764,19 @@ async function deleteItem(id) { if (!confirm("Biztosan törölni akarod?")) retu
 async function retryItem(id) { await fetch(`${API_BATCH_URL}/retry/${id}`, { method: 'POST' }); loadBatchStatus(); }
 async function resetStuck() { await fetch(`${API_BATCH_URL}/reset-stuck`, { method: 'POST' }); loadBatchStatus(); }
 
-function showCleanupModal() { document.getElementById('cleanupModal').style.display = 'flex'; }
-function hideCleanupModal() { 
+function showCleanupModal() {
     const modal = document.getElementById('cleanupModal');
-    if (modal) modal.style.display = 'none'; 
+    if (modal) modal.classList.add('show');
+    // A fókusz a modalba kerül, különben a Tab a háttérben lévő lapon lépked.
     const input = document.getElementById('cleanupConfirmInput');
-    if (input) input.value = ''; 
-    checkCleanupConfirmation(); 
+    if (input) input.focus();
+}
+function hideCleanupModal() {
+    const modal = document.getElementById('cleanupModal');
+    if (modal) modal.classList.remove('show');
+    const input = document.getElementById('cleanupConfirmInput');
+    if (input) input.value = '';
+    checkCleanupConfirmation();
 }
 
 function checkCleanupConfirmation() {
@@ -800,11 +784,7 @@ function checkCleanupConfirmation() {
     const val = (input && input.value || '').trim();
     const btn = document.getElementById('cleanupConfirmBtn');
     if (!btn) return;
-    if (val === 'Letöltöttem mindent') { 
-        btn.disabled = false; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; 
-    } else { 
-        btn.disabled = true; btn.style.opacity = '0.5'; btn.style.pointerEvents = 'none'; 
-    }
+    btn.disabled = (val !== 'Letöltöttem mindent');
 }
 
 async function doCleanup() {
@@ -902,8 +882,6 @@ function _updateDownloadAllButtons() {
         }
         btn.style.display = '';
         btn.disabled = (remaining === 0);
-        btn.style.opacity = (remaining === 0) ? '0.55' : '1';
-        btn.style.cursor = (remaining === 0) ? 'default' : 'pointer';
         if (remaining === 0) {
             btn.textContent = `${baseLabel} ✓ (${total}/${total})`;
             btn.title = 'Minden ilyen fájl már le van töltve';

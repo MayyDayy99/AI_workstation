@@ -11,8 +11,10 @@
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon.svg">
     <title>EDTI Stúdió — Leirat Batch</title>
-    <link rel="stylesheet" href="style.css?v=5">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=b2484b1bda">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="mock_core.js"></script>
 <script src="mock_routes_core.js"></script>
 <script src="mock_routes_batch.js"></script>
@@ -20,30 +22,31 @@
 <script src="mock_routes_flow.js"></script>
 <script src="mock_routes_subtitle.js"></script>
 <script src="mock_routes_misc.js"></script>
-<script src="shared.js?v=11"></script>
-    <script src="dedup.js"></script>
-    <script src="upload_queue.js?v=1"></script>
-    <script src="bulk_download.js?v=1"></script>
-    <script src="quick_combo.js?v=1"></script>
-    <script src="batch_core.js?v=7"></script>
+<script src="mock_routes_extra.js"></script>
+<script src="shared.js?v=fc5bbe1843"></script>
+    <script src="dedup.js?v=38521c9819"></script>
+    <script src="upload_queue.js?v=e5d8ea7fb0"></script>
+    <script src="bulk_download.js?v=fa5f9267e0"></script>
+    <script src="quick_combo.js?v=c30b307aae"></script>
+    <script src="batch_core.js?v=ac4250b777"></script>
 </head>
 
 <body>
     <div class="app-container">
         <aside class="sidebar">
             <div class="brand">
-                <a href="index.html" style="text-decoration:none;"><h1>EDTI Stúdió</h1></a>
-                <div id="userDisplay" style="font-size:0.8rem; color:#555; margin-top:4px;"></div>
+                <a href="index.html"><h1>EDTI Stúdió</h1></a>
+                <div id="userDisplay" class="ws-switch"></div>
             </div>
             <!-- Batch módban NINCS bal oldali feladatlista — a középen egy
                  helyen minden látszik. -->
-            <nav style="margin-top: 2rem; flex: 1;">
-                <a href="index.html" class="btn btn-secondary" style="width:100%; text-align:left; margin-bottom: 0.5rem;">← Főoldal</a>
-                <a href="transcribe.html" class="btn btn-secondary" style="width:100%; text-align:left; margin-bottom: 0.5rem;">← Egy fájl módba</a>
-                <div style="padding: 1rem 0.25rem; color: #6b7280; font-size: 0.85rem;">
-                    <p style="margin: 0 0 6px;">📁 Figyelt mappa:</p>
-                    <code style="display:block; background:#000; padding:0.5rem; word-break:break-all; border-radius: 6px; font-size: 0.75rem;" id="inboxPath">.\batch_inbox</code>
-                    <p style="margin: 10px 0 0; font-size:0.8rem; opacity:0.8;">Az ide ejtett fájlok automatikusan a sorba kerülnek.</p>
+            <nav class="sidebar-nav fill" aria-label="Fő navigáció">
+                <a href="index.html" class="btn btn-secondary btn-nav">← Főoldal</a>
+                <a href="transcribe.html" class="btn btn-secondary btn-nav">← Egy fájl módba</a>
+                <div class="inbox-note">
+                    <p>📁 Figyelt mappa:</p>
+                    <code class="inbox-path" id="inboxPath">.\batch_inbox</code>
+                    <p>Az ide ejtett fájlok automatikusan a sorba kerülnek.</p>
                 </div>
             </nav>
             <div id="serverMonitor">
@@ -51,27 +54,27 @@
                 <div class="monitor-row">
                     <span class="monitor-label">CPU</span>
                     <div class="monitor-bar-bg">
-                        <div class="monitor-bar-fill" id="monCpu" style="width:0%"></div>
+                        <div class="monitor-bar-fill" id="monCpu"></div>
                     </div>
                     <span class="monitor-val" id="monCpuTxt">–</span>
                 </div>
                 <div class="monitor-row">
                     <span class="monitor-label">VRAM</span>
                     <div class="monitor-bar-bg">
-                        <div class="monitor-bar-fill" id="monVram" style="width:0%"></div>
+                        <div class="monitor-bar-fill" id="monVram"></div>
                     </div>
                     <span class="monitor-val" id="monVramTxt">–</span>
                 </div>
                 <div class="monitor-row">
                     <span class="monitor-label">RAM</span>
                     <div class="monitor-bar-bg">
-                        <div class="monitor-bar-fill" id="monRam" style="width:0%"></div>
+                        <div class="monitor-bar-fill" id="monRam"></div>
                     </div>
                     <span class="monitor-val" id="monRamTxt">–</span>
                 </div>
-                <div class="monitor-row" style="margin-top:2px;">
-                    <span class="monitor-label" style="min-width:64px; color:#555;">Törölhető</span>
-                    <span class="monitor-val" id="monStorageTxt" style="text-align:left; flex:1; color:#10b981; font-weight:600;">–</span>
+                <div class="monitor-row monitor-row-storage">
+                    <span class="monitor-label">Törölhető</span>
+                    <span class="monitor-val" id="monStorageTxt">–</span>
                 </div>
                 <div class="monitor-queue">Sor: <span id="monQueue">–</span> | Fut: <span id="monRunning">–</span></div>
             </div>
@@ -85,17 +88,17 @@
                 <div class="batch-page-header">
                     <h2>Összes feladat</h2>
                     <div class="batch-header-actions">
-                        <span id="queueStats" style="color: #9ca3af; font-size:0.85rem; white-space:nowrap;">Sorban: 0 · Fut: 0 · Kész: 0</span>
+                        <span id="queueStats" class="queue-stats" aria-live="polite">Sorban: 0 · Fut: 0 · Kész: 0</span>
                         <button class="btn btn-secondary btn-animate-click" onclick="manualRefresh(this)">
                             <span id="refreshIcon">🔄</span> Frissítés
                         </button>
                         <button class="btn btn-secondary" onclick="showCleanupModal()"
-                            style="color:#f59e0b; border-color:#f59e0b;"
+                           
                             title="Kész, hibás és megszakított feladatok törlése">
                             🧹 Tárhely felszabadítása
                         </button>
                         <button class="btn btn-secondary" onclick="resetStuck()"
-                            style="color:#ef4444; border-color:#ef4444;"
+                           
                             title="Beragadt futó feladatok kényszer-leállítása">
                             ⚠️ Visszaállítás
                         </button>
@@ -103,14 +106,14 @@
                 </div>
 
                 <!-- Filter Row -->
-                <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+                <div class="toolbar">
                     <button id="myJobsBtn" onclick="toggleMyJobs()"
-                        style="font-size:0.82rem; padding:4px 14px; border-radius:6px; border:1px solid #6b7280; background:#222; color:#9ca3af; cursor:pointer; transition: all 0.2s;"
+                        class="btn btn-secondary btn-sm" aria-pressed="false"
                         title="Csak a saját feladataid">👤 Saját munkák</button>
-                    <div id="ownerFilterWrap" style="display:flex; align-items:center; gap:0.4rem;">
-                        <span style="color:#6b7280; font-size:0.82rem;">Felhasználó:</span>
+                    <div id="ownerFilterWrap" class="field-inline">
+                        <span>Felhasználó:</span>
                         <select id="ownerFilter" onchange="applyOwnerFilter(this.value)"
-                            style="background:#1a1a2e; border:1px solid #444; color:#ccc; border-radius:6px; padding:3px 8px; font-size:0.82rem;">
+                           >
                             <option value="">— Mindenki —</option>
                         </select>
                     </div>
@@ -122,24 +125,24 @@
                 </div>
 
                 <div class="upload-area" id="dropZone"
-                    style="margin-bottom: 1rem; border-style: dashed; border-width: 2px;">
-                    <div class="icon" style="font-size: 2rem; margin-bottom: 1rem;">📁</div>
+                   >
+                    <div class="dropzone-icon" aria-hidden="true">📁</div>
                     <p>Húzd ide a fájlokat a feltöltéshez</p>
-                    <p style="font-size: 0.8rem; color: #6b7280; margin-top: 0.5rem;">.mp4, .mov, .mkv, .mp3, .wav, .m4a, .aac</p>
-                    <input type="file" id="fileInput" multiple style="display: none;"
-                        accept=".mp4,.mov,.mkv,.avi,.webm,.mp3,.wav,.m4a,.aac">
+                    <p class="dropzone-formats">.mp4, .mov, .mkv, .f4v, .avi, .webm, .mp3, .wav, .m4a, .aac</p>
+                    <input type="file" id="fileInput" multiple hidden
+                        accept=".mp4,.mov,.mkv,.f4v,.avi,.webm,.mp3,.wav,.m4a,.aac">
                     <button class="btn btn-secondary" onclick="document.getElementById('fileInput').click()"
-                        style="margin-top: 1rem;">Vagy tallózás…</button>
+                       >Vagy tallózás…</button>
                 </div>
 
                 <!-- Pre-process: intro/outro a leirat ELŐTT — a transcript-időkód a
                      branded videón érvényes, nincs utólagos shift-elés. -->
-                <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom: 1rem; flex-wrap: wrap; font-size:0.85rem; color:#9ca3af; padding: 0.6rem 0.9rem; background: rgba(99,102,241,0.05); border-radius: 8px; border: 1px solid rgba(99,102,241,0.2);">
-                    <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
-                        <input type="checkbox" id="preIntroOutroCheckbox" style="accent-color:#6366f1;">
+                <div class="option-box">
+                    <label>
+                        <input type="checkbox" id="preIntroOutroCheckbox">
                         <span>🎬 Brand intro/outro is — a leirat ELŐTT</span>
                     </label>
-                    <select id="preIntroOutroTheme" style="background:#0f172a; border:1px solid #374151; color:#e5e7eb; border-radius:4px; padding:2px 8px; font-size:0.78rem;">
+                    <select id="preIntroOutroTheme">
                         <option value="sajat">Saját</option>
                         <option value="kmooc">KMOOC</option>
                         <option value="egyetemi">Egyetemi</option>
@@ -147,62 +150,64 @@
                 </div>
 
                 <!-- Concurrency csúszka — mobil-barát default 2, max 3 -->
-                <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom: 2rem; flex-wrap: wrap; font-size:0.85rem; color:#9ca3af;">
+                <div class="field-inline concurrency-field">
                     <span title="Egyszerre ennyi fájl indul el; a többi vár.">📶 Egyidejű feltöltések:</span>
-                    <input type="range" id="concurrencyRange" min="1" max="3" step="1" value="2"
-                        style="accent-color:#6366f1; width:120px;">
-                    <span id="concurrencyValue" style="font-weight:600; color:#e0e0e0; min-width:1.5em; text-align:center;">2</span>
-                    <span style="color:#6b7280; font-size:0.78rem;">(1 = mobil-barát, 3 = vezetékes LAN)</span>
+                    <input type="range" id="concurrencyRange" class="concurrency-range" min="1" max="3" step="1" value="2"
+                       >
+                    <span id="concurrencyValue" class="field-value" aria-live="polite">2</span>
+                    <span class="text-xs text-muted">(1 = mobil-barát, 3 = vezetékes LAN)</span>
                 </div>
 
                 <!-- Letöltés összes — a remaining-count + disabled-állapot a batch_core.js _updateDownloadAllButtons()-tól jön. -->
                 <div id="downloadBar"
-                    style="display:flex; justify-content:center; align-items:center; gap:1rem; margin-bottom:1.5rem; padding: 1rem; background:rgba(255,255,255,0.02); border-radius:8px; border:1px solid #333; flex-wrap:wrap;">
-                    <span style="color:#9ca3af; font-size:0.9rem; font-weight:600;">A kész feladatok letöltése:</span>
+                    class="download-bar">
+                    <span class="download-bar-label">A kész feladatok letöltése:</span>
                     <button class="btn btn-secondary" data-dlbtn="txt"  data-dl-label="⬇ Összes TXT"  onclick="downloadAllVisible('txt')">⬇ Összes TXT</button>
                     <button class="btn btn-secondary" data-dlbtn="srt"  data-dl-label="📝 Összes SRT" onclick="downloadAllVisible('srt')">📝 Összes SRT</button>
                     <button class="btn btn-secondary" data-dlbtn="json" data-dl-label="{} Összes JSON" onclick="downloadAllVisible('json')">{} Összes JSON</button>
                 </div>
 
-                <div id="uploadStatus" style="margin-bottom: 1rem; display:none;">
-                    <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px;">Betöltés…</div>
+                <div id="uploadStatus" class="upload-status hidden" aria-live="polite">
+                    <p>Betöltés…</p>
                 </div>
 
                 <!-- Középső egyben lista -->
                 <div id="batchList" class="batch-grid">
-                    <div class="empty-history" style="text-align:center; padding: 2rem;">Betöltés…</div>
+                    <div class="empty-history">Betöltés…</div>
                 </div>
             </section>
         </main>
     </div>
 
-    <!-- Username Modal -->
-    <div id="userModal" class="show">
-        <div class="user-modal-box">
-            <h2>👤 Üdvözöljük!</h2>
-            <p>Add meg a neved, hogy elkülönítve kezeljük a munkáidat.</p>
-            <input type="text" id="userNameInput" placeholder="pl. Kármen" maxlength="30" autocomplete="off">
-            <button class="btn btn-accent" style="width:100%;" onclick="setUsername()">Belépés →</button>
-        </div>
-    </div>
-
     <!-- Cleanup Modal -->
-    <div id="cleanupModal"
-        style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:9999; justify-content:center; align-items:center;">
-        <div style="background:#1a1a2e; border:1px solid #f59e0b; border-radius:12px; padding:2rem; max-width:420px; width:90%;">
-            <h2 style="color:#f59e0b; margin:0 0 1rem 0;">🧹 Tárhely Felszabadítása</h2>
-            <p style="color:#ccc; margin-bottom:1rem;">Ez az akció törli a kész, hibás és leállított job mappákat.</p>
-            <div style="background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); padding:1rem; margin-bottom:1.5rem; border-radius:8px;">
-                <label for="cleanupConfirmInput" style="display:block; color:#ccc; font-size:0.85rem; margin-bottom:0.5rem;">Gépeld be: <strong>Letöltöttem mindent</strong></label>
-                <input type="text" id="cleanupConfirmInput" autocomplete="off" onkeyup="checkCleanupConfirmation()"
-                    style="width:100%; padding:0.5rem; background:#111; border:1px solid #555; border-radius:4px; color:#fff;"
-                    placeholder="Letöltöttem mindent">
+    <!-- Tárhely-felszabadítás megerősítő modal. A közös .confirm-modal
+         komponens figyelmeztető változata. -->
+    <div id="cleanupModal" class="confirm-modal" role="dialog" aria-modal="true"
+         aria-labelledby="cleanupTitle">
+        <div class="confirm-modal-box tone-warning">
+            <h3 id="cleanupTitle">🧹 Tárhely felszabadítása</h3>
+            <p>Ez a művelet a következőket törli:</p>
+            <ul>
+                <li>A batch-sor (minden batch-lap) <span class="text-success">kész</span>,
+                    <span class="text-danger">hibás</span> és <span class="text-muted">megszakított</span>
+                    tételei és a jobjaik mappái — az összes bennük lévő hangfájl, videó és felirat</li>
+                <li>A batch inbox <code>_staging</code>, <code>done</code> és <code>error</code> almappái</li>
+            </ul>
+            <p class="text-success text-sm">✅ A jelenleg <strong>futó</strong> és
+                <strong>várakozó</strong> feladatokhoz, a kurzusokhoz és a nem batch-ből
+                indított feladatokhoz (egyedi lapok, flow) nem nyúlunk.</p>
+
+            <div class="callout">
+                <label for="cleanupConfirmInput">A megerősítéshez írd be, hogy
+                    <strong>Letöltöttem mindent</strong>:</label>
+                <input type="text" id="cleanupConfirmInput" autocomplete="off"
+                       onkeyup="checkCleanupConfirmation()" placeholder="Letöltöttem mindent">
             </div>
-            <div style="display:flex; gap:0.75rem;">
-                <button class="btn btn-secondary" onclick="hideCleanupModal()" style="flex:1;">Mégse</button>
-                <button class="btn btn-accent" onclick="doCleanup()" id="cleanupConfirmBtn" disabled
-                    style="flex:1; background:#f59e0b; color:#000; border-color:#f59e0b; opacity:0.5; pointer-events:none;">
-                    🗑️ Igen, Töröl!
+
+            <div class="actions">
+                <button class="btn btn-secondary" onclick="hideCleanupModal()">Mégse</button>
+                <button class="btn btn-warning" onclick="doCleanup()" id="cleanupConfirmBtn" disabled>
+                    🗑️ Igen, törlöm
                 </button>
             </div>
         </div>
@@ -216,21 +221,8 @@
             }
         })();
 
-        // TB-001: the username modal's "Belépés →" button calls setUsername(),
-        // but it was only defined on subtitle_batch.html — here it was undefined,
-        // so a first-time / cleared-cookie / incognito visitor was locked behind
-        // an unclosable modal (ReferenceError). Same impl as subtitle_batch.html.
-        function setUsername() {
-            const input = document.getElementById('userNameInput');
-            const name = (input.value || '').trim();
-            if (!name) { input.focus(); return; }
-            setCookie('dubOwner', name, 365);
-            localStorage.setItem('dubOwner', name);
-            document.getElementById('userModal').classList.remove('show');
-            if (typeof applyOwnerDisplay === 'function') applyOwnerDisplay();
-            if (typeof loadBatchStatus === 'function') loadBatchStatus();
-        }
-        window.setUsername = setUsername;
+        // A bejelentkezés előtti „Add meg a neved" modal törölve (TD-027): a lap a
+        // belépés mögött van, a tulajdonos a felhasználónév.
 
         initBatchPage('transcript_only');
     </script>

@@ -245,6 +245,10 @@
                 total: p.total,
                 finished: p.finished,
                 reclaimable_human: humanGb(p.reclaimable_gb),
+                // köztes fájlok (Demucs-kimenet, kivont hang) — szinkron, felirat, leirat
+                intermediates_supported: ['dub_full', 'subtitles_only', 'transcript_only'].indexOf(p.mode) >= 0,
+                intermediate_jobs: p.mode === 'dub_full' ? 3 : (p.mode === 'subtitles_only' ? 4 : (p.mode === 'transcript_only' ? 2 : 0)),
+                intermediate_human: p.mode === 'dub_full' ? '2.13 GB' : (p.mode === 'subtitles_only' ? '1.83 GB' : '412 MB'),
             })),
             scratch: [
                 { name: 'batch_inbox', exists: true, bytes: Math.round(X.storage.batch_inbox_mb * 1024 * 1024), human: humanMb(X.storage.batch_inbox_mb) },

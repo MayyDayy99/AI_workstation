@@ -26,8 +26,8 @@
   function _renderIntroOutroModal(defaults) {
     const d = defaults || {};
     return `
-      <h3 style="margin-top:0;">🎬 Folytasd brand intro/outro-val</h3>
-      <p style="color:#9ca3af; font-size:0.88rem; margin:8px 0 16px;">
+      <h3 class="qc-title">🎬 Folytasd brand intro/outro-val</h3>
+      <p class="qc-lead">
         A kész videó-output kap egy bevezető + záró keretet — a köztes fájl
         a szerveren marad, semmit nem kell le- és újra feltölteni.
       </p>
@@ -49,7 +49,7 @@
         <option value="hun"${(d.language || 'hun') === 'hun' ? ' selected' : ''}>Magyar</option>
         <option value="eng"${d.language === 'eng' ? ' selected' : ''}>Angol</option>
       </select>
-      <label style="display:flex; align-items:center; gap:6px;">
+      <label class="inline-check">
         <input type="checkbox" id="qc_loudness"${d.loudness ? ' checked' : ''}> Hangerő-normalizálás
       </label>
     `;
@@ -68,8 +68,8 @@
   // ─── Modal: subtitle/transcribe egyszerű (no config) ─────────────────
   function _renderSubtitleModal() {
     return `
-      <h3 style="margin-top:0;">💬 Folytasd felirattal</h3>
-      <p style="color:#9ca3af; font-size:0.88rem; margin:8px 0 16px;">
+      <h3 class="qc-title">💬 Folytasd felirattal</h3>
+      <p class="qc-lead">
         A meglévő videó-output kap egy felirat-generálást. Az SRT időkódjai
         automatikusan a videó-timeline-hoz illeszkednek (ha a forrás már
         brand-elt, a flow-engine offsetet alkalmaz).
@@ -79,8 +79,8 @@
 
   function _renderDubModal() {
     return `
-      <h3 style="margin-top:0;">🎙️ Folytasd szinkronnal</h3>
-      <p style="color:#9ca3af; font-size:0.88rem; margin:8px 0 16px;">
+      <h3 class="qc-title">🎙️ Folytasd szinkronnal</h3>
+      <p class="qc-lead">
         A meglévő videó-output kap egy szinkronizálást: ASR → fordítás →
         XTTS → mix.
       </p>
@@ -88,26 +88,10 @@
   }
 
   // ─── Modal-keret ─────────────────────────────────────────────────────
-  function _ensureStyle() {
-    if (document.getElementById("qc-style")) return;
-    const st = document.createElement("style");
-    st.id = "qc-style";
-    st.textContent = `
-      .qc-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:99999; }
-      .qc-box { background:#1a1a2e; border:1px solid #374151; border-radius:12px; padding:24px; min-width:360px; max-width:480px; width:90%; color:#e5e7eb; }
-      .qc-box label { display:block; font-size:0.78rem; color:#9ca3af; margin:14px 0 4px; text-transform:uppercase; letter-spacing:0.5px; }
-      .qc-box select, .qc-box input[type=text] { width:100%; padding:8px 10px; background:#0f172a; border:1px solid #374151; color:#e5e7eb; border-radius:6px; font-size:0.95rem; box-sizing:border-box; }
-      .qc-box .qc-actions { margin-top:18px; display:flex; gap:8px; justify-content:flex-end; }
-      .qc-status { font-size:0.85rem; min-height:1.2em; margin-top:10px; }
-      .qc-status.ok { color:#10b981; }
-      .qc-status.err { color:#ef4444; }
-    `;
-    document.head.appendChild(st);
-  }
+  // A .qc-* stílusok a style.css-ben élnek. (UI-13)
 
   function show(opts) {
     return new Promise((resolve) => {
-      _ensureStyle();
       const ov = document.createElement("div");
       ov.className = "qc-overlay";
       const innerHtml = opts.comboType === "intro_outro"
@@ -183,12 +167,12 @@
   // Visszaad egy <button>-string-et ami az onclick-jén meghívja a QuickCombo.show-t.
   // A meghívás `window.QuickCombo`-on át történik (globál), így az inline
   // onclick is CSP-friendly (no eval).
-  function buttonHtml({ jobId, sourceNodeType, comboType, label, style }) {
+  function buttonHtml({ jobId, sourceNodeType, comboType, label, className }) {
     const lbl = label || (comboType === "intro_outro" ? "🎬 Folytasd intro/outro-val"
       : comboType === "subtitle" ? "💬 Folytasd felirattal"
       : "🎙️ Folytasd szinkronnal");
-    const styleStr = style || "font-size:0.7rem; padding:4px 8px; margin-left:4px;";
-    return `<button class="btn btn-secondary" style="${styleStr}" onclick="QuickCombo.show({jobId: '${jobId}', sourceNodeType: '${sourceNodeType}', comboType: '${comboType}'})">${lbl}</button>`;
+    const cls = className || "btn-xs";
+    return `<button class="btn btn-secondary ${cls}" onclick="QuickCombo.show({jobId: '${jobId}', sourceNodeType: '${sourceNodeType}', comboType: '${comboType}'})">${lbl}</button>`;
   }
 
   window.QuickCombo = {

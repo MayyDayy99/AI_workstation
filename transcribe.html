@@ -11,27 +11,24 @@
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon.svg">
     <title>EDTI Stúdió — Leirat</title>
-    <link rel="stylesheet" href="style.css?v=3">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=b2484b1bda">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
 <body>
     <div class="app-container">
         <aside class="sidebar">
             <div class="brand">
-                <a href="index.html" style="text-decoration:none;"><h1>EDTI Stúdió</h1></a>
-                <div id="userDisplay" style="font-size:0.8rem; color:#555; margin-top:4px;"></div>
+                <a href="index.html" class="no-underline"><h1>EDTI Stúdió</h1></a>
+                <div id="userDisplay" class="ws-switch"></div>
             </div>
-            <div style="padding: 0 1rem; margin-bottom: 0.5rem;">
-                <a href="index.html" class="back-to-hub">← Vissza a főoldalra</a>
-            </div>
-            <div style="padding: 0 1rem; margin-bottom: 0.5rem;">
-                <a href="transcribe_batch.html" class="btn btn-secondary" style="width:100%; display:block; text-align:center;">Batch mód →</a>
-            </div>
-            <div style="padding: 0 1rem; margin-bottom: 1rem;">
-                <button onclick="logoutUser()" class="btn btn-secondary" style="width:100%; display:block; text-align:center; font-size:0.8rem; opacity:0.7;">🚪 Kijelentkezés</button>
-            </div>
-            <div style="padding: 0 4px; margin-bottom: 0.5rem;">
+            <nav class="sidebar-nav" aria-label="Fő navigáció">
+                <a href="transcribe_batch.html" class="btn btn-secondary btn-block">Batch mód →</a>
+                <a href="index.html" class="btn btn-secondary btn-block">← Vissza a főoldalra</a>
+            </nav>
+            <div class="sidebar-item is-tight">
                 <div class="date-filter-pills" id="historyDatePills">
                     <button class="date-pill active" id="hpAll"   onclick="setHistoryDateFilter('all')">Összes</button>
                     <button class="date-pill"        id="hpToday" onclick="setHistoryDateFilter('today')">📅 Ma</button>
@@ -39,34 +36,34 @@
                 </div>
             </div>
             <div class="history-list" id="jobHistory">
-                <div style="padding:20px; color:#555; font-size:0.85rem;">Nincs korábbi feladat</div>
+                <div class="empty-history">Nincs korábbi feladat</div>
             </div>
             <div id="serverMonitor">
                 <div class="monitor-title">⚡ Szerver Terhelés</div>
                 <div class="monitor-row">
                     <span class="monitor-label">CPU</span>
                     <div class="monitor-bar-bg">
-                        <div class="monitor-bar-fill" id="monCpu" style="width:0%"></div>
+                        <div class="monitor-bar-fill" id="monCpu"></div>
                     </div>
                     <span class="monitor-val" id="monCpuTxt">–</span>
                 </div>
                 <div class="monitor-row">
                     <span class="monitor-label">VRAM</span>
                     <div class="monitor-bar-bg">
-                        <div class="monitor-bar-fill" id="monVram" style="width:0%"></div>
+                        <div class="monitor-bar-fill" id="monVram"></div>
                     </div>
                     <span class="monitor-val" id="monVramTxt">–</span>
                 </div>
                 <div class="monitor-row">
                     <span class="monitor-label">RAM</span>
                     <div class="monitor-bar-bg">
-                        <div class="monitor-bar-fill" id="monRam" style="width:0%"></div>
+                        <div class="monitor-bar-fill" id="monRam"></div>
                     </div>
                     <span class="monitor-val" id="monRamTxt">–</span>
                 </div>
-                <div class="monitor-row" style="margin-top:2px;">
-                    <span class="monitor-label" style="min-width:64px; color:#555;">Törölhető</span>
-                    <span class="monitor-val" id="monStorageTxt" style="text-align:left; flex:1; color:#10b981; font-weight:600;">–</span>
+                <div class="monitor-row monitor-row-storage">
+                    <span class="monitor-label">Törölhető</span>
+                    <span class="monitor-val" id="monStorageTxt">–</span>
                 </div>
                 <div class="monitor-queue">Sor: <span id="monQueue">–</span> | Fut: <span id="monRunning">–</span></div>
             </div>
@@ -87,63 +84,26 @@
             <!-- Step 1: Upload -->
             <section id="uploadSection" class="card fade-in">
                 <h2>Fájl feltöltése</h2>
-                <p class="hint" style="margin-bottom:20px;">Tölts fel videót vagy hangfájlt — a rendszer Whisper AI-val szöveggé írja át a tartalmat.</p>
+                <p class="hint mb-5">Tölts fel videót vagy hangfájlt — a rendszer Whisper AI-val szöveggé írja át a tartalmat.</p>
                 <div class="upload-area" id="dropZone">
                     <p>Húzd ide a fájlt (MP4, MOV, MKV, MP3, WAV, M4A)</p>
-                    <input type="file" id="fileInput" accept=".mp4,.mov,.mkv,.avi,.mp3,.wav,.m4a,.aac" hidden>
+                    <input type="file" id="fileInput" accept=".mp4,.mov,.mkv,.f4v,.avi,.mp3,.wav,.m4a,.aac" hidden>
                     <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Fájl kiválasztása</button>
                     <span id="fileName" class="file-name"></span>
                 </div>
 
-                <!-- Opcionális hangminta — ahol egyetlen beszélő hangja van,
-                     a tisztább referencia érzékelhetően pontosabb. -->
-                <div class="voice-ref-area">
-                    <h3>Hangminta <span style="font-weight:400;font-size:0.8rem;color:#9ca3af;">(opcionális, pontosítja a felismerést)</span></h3>
-                    <p class="hint">Tölts fel egy 10–30 másodperces tiszta hangmintát, vagy hagyd automatikusan kinyerni a videóból.</p>
-                    <div class="flex-row">
-                        <div class="upload-area small" id="voiceDropZone">
-                            <p>Hangminta (WAV / MP3)</p>
-                            <input type="file" id="voiceInput" accept=".wav,.mp3" hidden>
-                            <button class="btn btn-secondary" onclick="document.getElementById('voiceInput').click()">Feltöltés</button>
-                            <span id="voiceFileName" class="file-name"></span>
-                        </div>
-                        <div class="checkbox-group">
-                            <label class="custom-checkbox">
-                                <input type="checkbox" id="autoExtractVoice">
-                                <span class="checkmark"></span>
-                                Automatikus kinyerés a videóból
-                            </label>
-                            <label class="custom-checkbox" title="Zajcsökkentés, tisztább referenciaminta">
-                                <input type="checkbox" id="enhanceRef">
-                                <span class="checkmark"></span>
-                                Hangminta javítása
-                            </label>
-                        </div>
-                    </div>
-                </div>
+                <!-- Hangminta-blokk eltávolítva: a leirat-pipeline csak az ASR-t
+                     futtatja, a hangmintát nem használja semmilyen formában. A
+                     blokk üres ígéret volt — a transcribe.js egyik mezőjét sem
+                     olvasta, a feltöltött minta sehová nem ment. (Funkció-
+                     ellenőrzés, 4/12; ugyanígy járt el korábban a felirat-lap.) -->
 
-                <!-- Haladó beállítások — a leiratnál is kapsz nyelv/preset választást. -->
-                <details class="advanced-settings" id="advancedSettings">
-                    <summary>⚙️ Haladó beállítások</summary>
-                    <div class="advanced-body">
-                        <div class="field-row">
-                            <label for="advLanguage">Forrás nyelv</label>
-                            <select id="advLanguage">
-                                <option value="hun">Magyar (alapértelmezett)</option>
-                                <option value="eng">Angol</option>
-                            </select>
-                        </div>
-                        <div class="field-row">
-                            <label for="advPreset">Minőségi előbeállítás</label>
-                            <select id="advPreset">
-                                <option value="youtube">YouTube (ajánlott)</option>
-                                <option value="fast">Gyors</option>
-                                <option value="archive">Archív (legjobb)</option>
-                                <option value="mobile">Mobil</option>
-                            </select>
-                        </div>
-                    </div>
-                </details>
+                <!-- „Haladó beállítások" eltávolítva: egyik vezérlőjét (forrás
+                     nyelv, minőségi preset) sem olvasta a JS, és a /api/start
+                     ilyen paramétert nem is fogad — az ASR fixen magyar
+                     (asr.py: language="hu"). Egy angol előadásra az „Angol"
+                     választás csendben hatástalan volt. (Funkció-ellenőrzés,
+                     4/12.) -->
 
                 <div class="actions">
                     <button id="startBtn" class="btn btn-accent" disabled>Leirat készítése</button>
@@ -157,23 +117,23 @@
                     <span id="jobStageBadge" class="badge">Inicializálás</span>
                 </div>
                 <div class="progress-bar-container">
-                    <div class="progress-bar" id="progressBar" style="width:0%"></div>
+                    <div class="progress-bar" id="progressBar"></div>
                 </div>
                 <p id="statusDetail" class="status-detail">Kérjük várjon...</p>
-                <div style="margin-top:12px;">
-                    <button id="cancelJobBtn" class="btn btn-secondary" style="font-size:0.85rem;">✕ Mégse</button>
+                <div class="mt-3">
+                    <button id="cancelJobBtn" class="btn btn-secondary btn-sm">✕ Mégse</button>
                 </div>
             </section>
 
             <!-- Step 3: Download -->
             <section id="downloadSection" class="card hidden">
                 <h2>✅ Leirat kész</h2>
-                <p class="hint" style="margin-bottom:20px;">Válaszd ki a letöltési formátumot:</p>
+                <p class="hint mb-5">Válaszd ki a letöltési formátumot:</p>
                 <div class="download-grid">
                     <div class="download-card">
                         <span class="icon">📝</span>
                         <span class="label">Szöveg (TXT)</span>
-                        <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:16px;">Időkódokkal, olvasható szöveg</p>
+                        <p class="text-xs text-secondary mb-4">Időkódokkal, olvasható szöveg</p>
                         <div class="download-card-actions">
                             <button class="btn btn-accent" onclick="downloadTxt()">Letöltés</button>
                         </div>
@@ -181,7 +141,7 @@
                     <div class="download-card">
                         <span class="icon">🎬</span>
                         <span class="label">Felirat (SRT)</span>
-                        <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:16px;">Videószerkesztőkbe importálható</p>
+                        <p class="text-xs text-secondary mb-4">Videószerkesztőkbe importálható</p>
                         <div class="download-card-actions">
                             <button class="btn btn-accent" onclick="dlFile('hu.srt')">Letöltés</button>
                         </div>
@@ -189,13 +149,13 @@
                     <div class="download-card">
                         <span class="icon">📊</span>
                         <span class="label">Nyers adatok (JSON)</span>
-                        <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:16px;">Időkódok és szöveg gépi formátumban</p>
+                        <p class="text-xs text-secondary mb-4">Időkódok és szöveg gépi formátumban</p>
                         <div class="download-card-actions">
                             <button class="btn btn-secondary" onclick="dlFile('segments.json')">Letöltés</button>
                         </div>
                     </div>
                 </div>
-                <div style="margin-top:24px;">
+                <div class="mt-6">
                     <button class="btn btn-secondary" onclick="resetPage()">← Új leirat</button>
                 </div>
             </section>
@@ -209,8 +169,13 @@
 <script src="mock_routes_flow.js"></script>
 <script src="mock_routes_subtitle.js"></script>
 <script src="mock_routes_misc.js"></script>
-<script src="shared.js?v=11"></script>
-    <script src="transcribe.js"></script>
+<script src="mock_routes_extra.js"></script>
+<script src="shared.js?v=fc5bbe1843"></script>
+    <!-- a darabolt feltöltéshez; a dedup.js az upload_queue.js ELŐTT kell
+         (az UploadQueue a szignatúrát a DedupUpload-dal számolja) -->
+    <script src="dedup.js?v=38521c9819"></script>
+    <script src="upload_queue.js?v=e5d8ea7fb0"></script>
+    <script src="transcribe.js?v=346cabfb39"></script>
     <script>
         // Egységes fejléc-csík — Leirat, zöld színkód.
         (function() {

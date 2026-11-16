@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="hu">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0e0e1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="EDTI Studio">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon.svg">
+    <title>EDTI Stúdió — Fájlkonvertáló</title>
+    <link rel="stylesheet" href="style.css?v=b2484b1bda">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="brand">
+                <a href="index.html" class="no-underline"><h1>EDTI Stúdió</h1></a>
+                <div id="userDisplay" class="ws-switch"></div>
+            </div>
+            <nav class="sidebar-nav" aria-label="Fő navigáció">
+                <a href="index.html" class="btn btn-secondary btn-block">← Vissza a főoldalra</a>
+            </nav>
+            <!-- A legutóbbi konverziók a szerverről (api/convert/jobs): az
+                 eredmény a megőrzési időn belül innen is letölthető. -->
+            <div class="history-list" id="convertHistory"></div>
+        </aside>
+
+        <main class="main-content">
+            <!-- Egységes fejléc-csík — Fájlkonvertáló, lime színkód. -->
+            <div id="processBanner"></div>
+
+            <!-- A nézőnek: konvertálni nem tud (a backend 403-at adna). -->
+            <section id="viewerNotice" class="card hidden">
+                <h2>Nincs jogosultságod</h2>
+                <p class="hint">Konvertálni csak szerkesztő és admin szerepkörrel lehet.</p>
+            </section>
+
+            <section id="pickSection" class="card fade-in">
+                <h2>Fájl kiválasztása</h2>
+                <p class="hint mb-6">Dokumentum, bemutató, táblázat, kép, hang, videó vagy felirat — és
+                    HTML (vagy ZIP-ben a projekt) MP4-be, GPU-val: oldalfelvétellel bármilyen lapról, vagy
+                    HyperFrames-kompozícióként. A fájl a stúdió gépén marad, nem megy külső konvertáló
+                    szolgáltatóhoz; az eredmény 24 óráig tölthető le.</p>
+
+                <div class="upload-area" id="dropZone">
+                    <p>Húzd ide a fájlt</p>
+                    <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.odt,.rtf,.txt,.md,.html,.htm,.epub,.pptx,.ppt,.odp,.xlsx,.xls,.ods,.csv,.png,.jpg,.jpeg,.webp,.avif,.tif,.tiff,.bmp,.gif,.heic,.heif,.svg,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus,.wma,.mp4,.mov,.mkv,.webm,.avi,.wmv,.m4v,.mpg,.mpeg,.srt,.vtt,.ass,.ssa,.zip" hidden>
+                    <button class="btn btn-primary" id="pickBtn" type="button">Kiválasztás</button>
+                </div>
+
+                <div id="pickedRow" class="row gap-3 mt-4 hidden">
+                    <span id="pickedName" class="truncate"></span>
+                    <span id="pickedSize" class="text-secondary text-sm"></span>
+                </div>
+
+                <div id="targetRow" class="row gap-3 mt-4 hidden">
+                    <label for="targetSelect">Célformátum</label>
+                    <select id="targetSelect"></select>
+                </div>
+
+                <!-- HTML → MP4: csak a videó-céloknál látszik (H2V-1, H2V-CAPTURE-1) -->
+                <div id="renderOptions" class="row gap-3 mt-4 hidden">
+                    <label for="qualitySelect">Minőség</label>
+                    <select id="qualitySelect">
+                        <option value="draft">Vázlat (gyors)</option>
+                        <option value="standard" selected>Normál</option>
+                        <option value="high">Kiváló</option>
+                    </select>
+                    <label for="fpsSelect">Képkocka/mp</label>
+                    <select id="fpsSelect">
+                        <option value="" id="fpsDefaultOption" selected>A kompozícióé</option>
+                        <option value="24">24</option>
+                        <option value="25">25</option>
+                        <option value="30">30</option>
+                        <option value="50">50</option>
+                        <option value="60">60</option>
+                    </select>
+                </div>
+
+                <!-- Oldalfelvétel (H2V-CAPTURE-1): hossz + a lap lejátszósávja -->
+                <div id="captureOptions" class="row gap-3 mt-4 hidden">
+                    <label for="secondsInput">Hossz (mp)</label>
+                    <input type="number" id="secondsInput" min="1" max="600" step="1" placeholder="a lapról"
+                           inputmode="numeric" class="input-80">
+                    <label for="hideControls">
+                        <input type="checkbox" id="hideControls" checked>
+                        <span>A lap lejátszósávja kimarad</span>
+                    </label>
+                </div>
+                <p id="captureEstimate" class="hint text-sm mt-2 hidden" role="status"></p>
+
+                <p id="renderHint" class="hint text-sm mt-2 hidden">HyperFrames-kompozíció: a gyökérelemen
+                    data-composition-id kell. ZIP-ben a projekt mappája (index.html + a fájljai). Külső fájl csak a
+                    jsdelivr, cdnjs, unpkg és Google Fonts címéről töltődik be.</p>
+                <p id="captureHint" class="hint text-sm mt-2 hidden">Oldalfelvétel: a lapot kockánként fotózzuk, és
+                    a lap óráját mi léptetjük — így a videó tempója pontosan annyi, mint a lapon. Bármilyen HTML
+                    mehet (ZIP-ben a projekt mappája, index.html-lel). A felvétel <strong>néma</strong> (a lap
+                    hangja nem kerül bele), és <strong>lassabb a valós időnél</strong>. A hossz üresen hagyva a
+                    lapról jön (data-h2v-duration attribútum, média hossza vagy a lejátszósáv időkódja). Külső
+                    fájl csak a jsdelivr, cdnjs, unpkg és Google Fonts címéről töltődik be.</p>
+
+                <p id="pickStatus" class="text-sm mt-4" role="status"></p>
+
+                <div class="actions">
+                    <button id="convertBtn" class="btn btn-accent" type="button" disabled>Konvertálás</button>
+                </div>
+            </section>
+
+            <section id="statusSection" class="card hidden">
+                <div class="status-header">
+                    <h2 id="statusTitle">Konvertálás…</h2>
+                    <span id="statusBadge" class="badge">Feltöltés</span>
+                </div>
+                <div class="progress-bar-container" id="progressBox">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+                <p id="statusDetail" class="status-detail"></p>
+            </section>
+
+            <section id="resultSection" class="card hidden">
+                <h2>✅ Kész</h2>
+                <p id="resultDetail" class="hint mb-6"></p>
+                <div class="row gap-3">
+                    <a id="downloadLink" class="btn btn-accent" href="#">Letöltés</a>
+                    <button id="againBtn" class="btn btn-secondary" type="button">Másik formátumba is</button>
+                    <button id="newBtn" class="btn btn-secondary" type="button">Új fájl</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="mock_core.js"></script>
+<script src="mock_routes_core.js"></script>
+<script src="mock_routes_batch.js"></script>
+<script src="mock_routes_ppt.js"></script>
+<script src="mock_routes_flow.js"></script>
+<script src="mock_routes_subtitle.js"></script>
+<script src="mock_routes_misc.js"></script>
+<script src="mock_routes_extra.js"></script>
+<script src="shared.js?v=fc5bbe1843"></script>
+    <!-- a darabolt feltöltéshez; a dedup.js az upload_queue.js ELŐTT kell
+         (az UploadQueue a szignatúrát a DedupUpload-dal számolja) -->
+    <script src="dedup.js?v=38521c9819"></script>
+    <script src="upload_queue.js?v=e5d8ea7fb0"></script>
+    <script src="convert.js?v=483e9a5055"></script>
+    <script>
+        (function() {
+            if (typeof renderProcessBanner === 'function') {
+                renderProcessBanner({ process: 'convert', mode: 'single' });
+            }
+        })();
+    </script>
+    <script>
+      if (false /* demo: SW off */) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('sw.js').catch(function (err) {
+            console.warn('SW reg failed:', err);
+          });
+        });
+      }
+    </script>
+</body>
+</html>

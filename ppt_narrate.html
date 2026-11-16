@@ -10,8 +10,10 @@
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon.svg">
     <title>EDTI Stúdió — PPT Narráció</title>
-    <link rel="stylesheet" href="style.css?v=3">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Open+Sans:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=b2484b1bda">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="mock_core.js"></script>
 <script src="mock_routes_core.js"></script>
 <script src="mock_routes_batch.js"></script>
@@ -19,54 +21,132 @@
 <script src="mock_routes_flow.js"></script>
 <script src="mock_routes_subtitle.js"></script>
 <script src="mock_routes_misc.js"></script>
-<script src="shared.js?v=11"></script>
-    <script src="voice_picker.js"></script>
+<script src="mock_routes_extra.js"></script>
+<script src="shared.js?v=fc5bbe1843"></script>
+    <script src="voice_picker.js?v=397b4fa294"></script>
     <style>
-        .pn-grid { display: grid; gap: 18px; }
-        .pn-field { display:flex; flex-direction:column; gap:6px; }
+        /* A lap saját, a rendszerben nem szereplő árnyalata: a PPT-narráció
+           lila akcentusának világos vége. Csak ez az egy oldal használja,
+           ezért lap-szintű token, nem globális. */
+        :root {
+            --pn-accent-light: #a78bfa;
+        }
+
+        /* Világos háton a világos lila olvashatatlan — sötét árnyalat kell. */
+        :root[data-theme="light"] {
+            --pn-accent-light: #6d28d9;
+        }
+
+        .pn-grid { display: grid; gap: var(--space-5); }
+        .pn-field { display:flex; flex-direction:column; gap: var(--space-2); }
         .pn-field label {
-            font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);
-            text-transform: uppercase; letter-spacing: 0.5px;
+            font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: var(--ls-wide);
         }
+        /* background-color / padding-inline-start, NEM rövidítés: az nullázná
+           a közös select-szabály rajzolt nyilát (background-image) és a helyét. */
         .pn-field select, .pn-field input[type=number] {
-            background:#0f172a; border:1px solid #374151; color:#e5e7eb;
-            border-radius:6px; padding:8px 10px; font-size:0.95rem;
+            background-color: var(--surface-sunken); border: 1px solid var(--border-color); color: var(--text-primary);
+            border-radius: var(--radius-sm); padding-block: 8px; padding-inline-start: 10px; font-size: var(--fs-lg);
         }
-        .pn-voice-row { display:flex; gap:8px; align-items:center; }
-        .pn-voice-row select { flex:1; }
+        .pn-voice-row { display:flex; gap: var(--space-2); align-items:center; }
+        .pn-voice-row select { flex:1; min-width: 0; }
+
+        /* A haladás-panel a rendszer felület- és keret-tokenjeit viseli (eddig
+           saját var(--surface-raised) / var(--border-strong) / var(--surface-sunken) hármast), a sáv kitöltése viszont
+           a lap FOLYAMAT-SZÍNE marad — az mondja meg, melyik eszközben vagy. */
         .pn-progress-wrap {
-            background:#1f2937; border-radius:10px; padding:14px 18px;
-            border:1px solid #374151;
+            background: var(--surface-raised); border-radius: var(--radius-md);
+            padding: var(--space-4) var(--space-5);
+            border: 1px solid var(--border-color);
         }
+        /* 10px külső magasság 1px kerettel = 8px látható kitöltés, ahogy a
+           közös .progress-bar-container-nél. (A keret hozzáadásakor a belső
+           kitöltés 8-ról 6px-re csökkent volna.) */
         .pn-progress-bar {
-            height:8px; background:#111827; border-radius:4px; overflow:hidden;
-            margin-top:10px;
+            height: 10px; background: var(--well); border-radius: var(--radius-xs);
+            overflow: hidden; margin-top: var(--space-2);
+            border: 1px solid var(--border-color);
         }
         .pn-progress-fill {
             height:100%; width:0%;
-            background: linear-gradient(90deg, #7c3aed, #a78bfa);
-            transition: width 0.5s ease;
+            background: linear-gradient(90deg, var(--process-ppt-narrate), var(--pn-accent-light));
+            transition: width 0.5s var(--ease);
         }
+        /* Státusz-jelvények. Eddig TÖMÖR kitöltésűek voltak, saját palettával —
+           miközben a batch-listák ugyanezeket az állapotokat halvány háttérrel
+           és olvasható szövegszínnel jelölik (.job-queue-status-pill). Ugyanaz
+           a fogalom kétféleképpen nézett ki. Most a rendszer jelölés-nyelvét
+           viselik; a futó fázisok a lap folyamat-színét kapják. */
         .pn-stage-badge {
-            display:inline-block; padding:2px 10px; border-radius:12px;
-            font-size:0.72rem; font-weight:700; text-transform:uppercase;
-            letter-spacing:0.05em; margin-left:8px;
+            display:inline-block; padding: 3px var(--space-3); border-radius: var(--radius-pill);
+            font-size: var(--fs-2xs); font-weight: var(--fw-bold); text-transform:uppercase;
+            letter-spacing: var(--ls-wide); margin-left: var(--space-2);
+            white-space: nowrap;
         }
-        .pn-stage-uploaded   { background:#fde68a; color:#000; }
-        .pn-stage-queued     { background:#6b7280; color:#fff; }
+        .pn-stage-uploaded   { background: var(--warning-soft); color: var(--warning-text); }
+        .pn-stage-queued     { background: var(--neutral-soft); color: var(--neutral-text); }
         .pn-stage-narrating, .pn-stage-rendering_slides, .pn-stage-extracting_notes,
-        .pn-stage-composing  { background:#7c3aed; color:#fff; }
-        .pn-stage-done       { background:#10b981; color:#fff; }
-        .pn-stage-error      { background:#ef4444; color:#fff; }
-        .pn-stage-cancelled  { background:#6b7280; color:#fff; }
+        .pn-stage-composing  { background: var(--process-ppt-narrate-bg); color: var(--pn-accent-light); }
+        .pn-stage-done       { background: var(--success-soft); color: var(--success-text); }
+        .pn-stage-error      { background: var(--danger-soft); color: var(--danger-text); }
+        .pn-stage-cancelled  { background: var(--neutral-soft); color: var(--text-muted); }
+
+        /* A jelölőből ide hozott, korábban inline stílusok. */
+
+        /* A lap fő cselekvése — a folyamat színével derengve. */
+        .pn-cta { box-shadow: 0 0 15px rgba(124, 58, 237, 0.4); }
+
+        .beta-badge {
+            background: var(--process-ppt-narrate-bg);
+            color: var(--pn-accent-light);
+            font-size: var(--fs-3xs);
+            vertical-align: middle;
+            margin-left: var(--space-2);
+        }
+
+        .inline-error {
+            margin-top: var(--space-2);
+            padding: var(--space-2) var(--space-3);
+            background: var(--danger-soft);
+            border: 1px solid var(--danger);
+            border-radius: var(--radius-sm);
+            color: var(--danger-text);
+            font-size: var(--fs-sm);
+        }
+
+        .is-error-row { border-left: 3px solid var(--danger); }
+
+        .modal-title { margin: 0 0 var(--space-3); padding-right: var(--space-6); }
+
+        /* Az épp játszó fejezet jelölése — eddig inline outline nyers hexszel. */
+        .is-active-chapter {
+            outline: 2px solid var(--process-ppt-narrate);
+            outline-offset: 1px;
+        }
+
+        .chapter-list {
+            margin-top: var(--space-2);
+            max-height: 140px;
+            overflow-y: auto;
+        }
+
+        /* Térköz-segédosztályok — a rendszer skálájából. */
+        .mt-2 { margin-top: var(--space-2); }
+        .mt-4 { margin-top: var(--space-4); }
+        .mt-5 { margin-top: var(--space-5); }
+        .mt-6 { margin-top: var(--space-6); }
+        .mb-4 { margin-bottom: var(--space-4); }
+        .mb-5 { margin-bottom: var(--space-5); }
+        .mb-6 { margin-bottom: var(--space-6); }
 
         /* F2: thumbnail badge on history rows — kis méret, hogy a job-info
            és az actions-oszlop is elférjen a keskeny sidebar-ban. */
         .ppt-thumb {
             width: 56px; max-width: 56px; height: 32px;
-            object-fit: cover; border-radius: 4px;
+            object-fit: cover; border-radius: var(--radius-xs);
             margin-right: 0; flex-shrink: 0;
-            background: #111827; border: 1px solid #374151;
+            background-color: var(--surface-sunken); border: 1px solid var(--border-color);
         }
         /* A history-row dátum-szövege ne tördelődjön több sorba — keskeny
            sidebar-ban a "06. 08. 08:25" három sorra esett szét. */
@@ -76,55 +156,77 @@
             text-overflow: ellipsis;
         }
 
-        /* F3: Preview modal */
+        /* Előnézet-modal. Nem a közös .confirm-modal-ra épül, mert a
+           láthatóságát FORDÍTVA kapcsolja: alapból látható + .hidden rejti,
+           míg a közös alapból rejtett + .show mutatja. A logika megfordítása
+           JS-t is érintene, és pont azt a .hidden-csapdát hozná vissza, ami a
+           projektben már háromszor okozott hibát — ezért marad a saját
+           mechanizmus, csak a megjelenése igazodik a rendszerhez. */
         .preview-overlay {
-            position: fixed; inset: 0; z-index: 9999;
-            background: rgba(0,0,0,0.78);
+            position: fixed; inset: 0; z-index: var(--z-modal);
+            background: var(--scrim-strong);
             display: flex; align-items: center; justify-content: center;
-            padding: 24px;
+            padding: var(--space-6);
         }
+        /* A közös .hidden !important-tal tilt, így ez a sor önmagában
+           redundáns — de kimondva marad, mert a szabály nélkül a
+           display:flex olvasása félrevezető lenne. */
         .preview-overlay.hidden { display: none; }
         .preview-box {
-            background: #0f172a; border: 1px solid #374151;
-            border-radius: 10px; max-width: 960px; width: 100%;
+            background: var(--surface-sunken); border: 1px solid var(--border-color);
+            border-radius: var(--radius-md); max-width: 960px; width: 100%;
             max-height: 92vh; overflow: auto; position: relative;
-            padding: 18px 18px 16px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            padding: var(--space-5) var(--space-5) var(--space-4);
+            box-shadow: var(--shadow-xl);
         }
         .preview-close {
-            position: absolute; top: 8px; right: 10px;
-            background: transparent; color: #e5e7eb; border: none;
-            font-size: 1.6rem; cursor: pointer; line-height: 1;
-            padding: 4px 10px;
+            position: absolute; top: var(--space-2); right: var(--space-2);
+            background: transparent; color: var(--text-primary); border: none;
+            font-size: var(--fs-2xl); cursor: pointer; line-height: 1;
+            padding: var(--space-1) var(--space-2);
+            border-radius: var(--radius-sm);
         }
-        .preview-close:hover { color: #ef4444; }
+        .preview-close:hover { color: var(--danger-text); }
         .preview-video {
-            width: 100%; max-height: 60vh; background: #000;
-            border-radius: 6px; display: block;
+            width: 100%; max-height: 60vh;
+            /* Fekete marad: a videó levélszekrény-sávjainak ez a helyes
+               háttere, nem felület-token. */
+            background: #000;
+            border-radius: var(--radius-sm); display: block;
         }
         .preview-actions {
-            display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap;
+            display: flex; gap: var(--space-2); margin-top: var(--space-4); flex-wrap: wrap;
         }
+
+        /* Fejezet-gombok az előnézetben. A display:flex-et EZ adja, nem a JS —
+           korábban a JS mindkettőt kapcsolta (.hidden osztály ÉS style.display),
+           ami összekeverte a láthatóságot az elrendezéssel. */
+        #previewChapters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-2);
+        }
+
         .preview-slidelist {
-            margin-top: 16px; border-top: 1px solid #374151;
-            padding-top: 12px; max-height: 40vh; overflow-y: auto;
+            margin-top: var(--space-4); border-top: 1px solid var(--border-color);
+            padding-top: var(--space-3); max-height: 40vh; overflow-y: auto;
         }
         .preview-slidelist.hidden { display: none; }
         .pn-slide-row {
-            display: flex; align-items: center; gap: 10px;
-            padding: 8px 6px; border-bottom: 1px solid #1f2937;
-            font-size: 0.88rem; color: #e5e7eb;
+            display: flex; align-items: center; gap: var(--space-2);
+            padding: var(--space-2) var(--space-1); border-bottom: 1px solid var(--border-subtle);
+            font-size: var(--fs-md); color: var(--text-primary);
         }
         .pn-slide-row:last-child { border-bottom: none; }
         .pn-slide-num {
-            min-width: 36px; font-weight: 700; color: #a78bfa;
+            min-width: 36px; font-weight: var(--fw-bold); color: var(--pn-accent-light);
         }
         .pn-slide-notes {
-            flex: 1; color: #cbd5e1; overflow: hidden;
+            flex: 1; color: var(--text-secondary); overflow: hidden;
             text-overflow: ellipsis; white-space: nowrap;
         }
         .pn-slide-status {
-            font-size: 0.78rem; color: #9ca3af; min-width: 90px;
+            font-size: var(--fs-xs); color: var(--text-secondary); min-width: 90px;
             text-align: right;
         }
     </style>
@@ -133,22 +235,15 @@
 <div class="app-container">
     <aside class="sidebar">
         <div class="brand">
-            <a href="index.html" style="text-decoration:none;"><h1>EDTI Stúdió</h1></a>
-            <div id="userDisplay" style="font-size:0.8rem; color:#555; margin-top:4px;"></div>
+            <a href="index.html"><h1>EDTI Stúdió</h1></a>
+            <div id="userDisplay" class="ws-switch"></div>
         </div>
-        <div style="padding: 0 1rem; margin-bottom: 0.5rem;">
-            <a href="index.html" class="back-to-hub">← Vissza a főoldalra</a>
-        </div>
-        <div style="padding: 0 1rem; margin-bottom: 0.5rem;">
-            <a href="ppt_narrate.html" class="btn btn-primary" style="width:100%; display:block; text-align:center; box-shadow: 0 0 15px rgba(124,58,237,0.4);">🗣️ Egy PPT feltöltés</a>
-        </div>
-        <div style="padding: 0 1rem; margin-bottom: 0.5rem;">
-            <a href="ppt_narrate_batch.html" class="btn btn-secondary" style="width:100%; display:block; text-align:center;">Batch mód →</a>
-        </div>
-        <div style="padding: 0 1rem; margin-bottom: 1rem;">
-            <button onclick="logoutUser()" class="btn btn-secondary" style="width:100%; display:block; text-align:center; font-size:0.8rem; opacity:0.7;">🚪 Kijelentkezés</button>
-        </div>
-        <div style="padding: 0 4px; margin-bottom: 0.5rem;">
+        <nav class="sidebar-nav" aria-label="Fő navigáció">
+            <a href="ppt_narrate.html" class="btn btn-primary btn-block pn-cta">🗣️ Egy PPT feltöltés</a>
+            <a href="ppt_narrate_batch.html" class="btn btn-secondary btn-block">Batch mód →</a>
+            <a href="index.html" class="btn btn-secondary btn-block">← Vissza a főoldalra</a>
+        </nav>
+        <div>
             <div class="date-filter-pills" id="historyDatePills">
                 <button class="date-pill active" id="hpAll"   onclick="setHistoryDateFilter('all')">Összes</button>
                 <button class="date-pill"        id="hpToday" onclick="setHistoryDateFilter('today')">📅 Ma</button>
@@ -158,23 +253,23 @@
         <!-- Korábbi PPT narrációk listája — a többi single-page-en is ott van,
              a user explicit kérése: "valahol gyűlik bal oldalt, valahol nem". -->
         <div class="history-list" id="jobHistory">
-            <div style="padding:20px; color:#555; font-size:0.85rem;">Nincs korábbi feladat</div>
+            <div class="empty-history">Nincs korábbi feladat</div>
         </div>
         <div id="serverMonitor">
             <div class="monitor-title">⚡ Szerver Terhelés</div>
             <div class="monitor-row">
                 <span class="monitor-label">CPU</span>
-                <div class="monitor-bar-bg"><div class="monitor-bar-fill" id="monCpu" style="width:0%"></div></div>
+                <div class="monitor-bar-bg"><div class="monitor-bar-fill" id="monCpu"></div></div>
                 <span class="monitor-val" id="monCpuTxt">–</span>
             </div>
             <div class="monitor-row">
                 <span class="monitor-label">VRAM</span>
-                <div class="monitor-bar-bg"><div class="monitor-bar-fill" id="monVram" style="width:0%"></div></div>
+                <div class="monitor-bar-bg"><div class="monitor-bar-fill" id="monVram"></div></div>
                 <span class="monitor-val" id="monVramTxt">–</span>
             </div>
             <div class="monitor-row">
                 <span class="monitor-label">RAM</span>
-                <div class="monitor-bar-bg"><div class="monitor-bar-fill" id="monRam" style="width:0%"></div></div>
+                <div class="monitor-bar-bg"><div class="monitor-bar-fill" id="monRam"></div></div>
                 <span class="monitor-val" id="monRamTxt">–</span>
             </div>
             <div class="monitor-queue">Sor: <span id="monQueue">–</span> | Fut: <span id="monRunning">–</span></div>
@@ -197,15 +292,15 @@
 
         <!-- Step 1: Upload -->
         <section id="uploadSection" class="card fade-in">
-            <h2>PPTX feltöltése <span class="badge" style="background:#7c3aed; color:#fff; font-size:0.6rem; vertical-align:middle; margin-left:8px;">BÉTA</span></h2>
-            <p class="hint" style="margin-bottom:20px;">Töltsd fel a PowerPoint-ot — a rendszer a <strong>dia-jegyzeteket</strong> (Speaker Notes) olvassa fel diánként.</p>
+            <h2>PPTX feltöltése <span class="badge beta-badge">BÉTA</span></h2>
+            <p class="hint mb-5">Töltsd fel a PowerPoint-ot — a rendszer a <strong>dia-jegyzeteket</strong> (Speaker Notes) olvassa fel diánként.</p>
             <div class="upload-area" id="pptDropZone">
                 <p id="uploadTitle">Húzd ide a PPTX-et</p>
                 <input type="file" id="pptInput" accept=".pptx" hidden>
                 <button class="btn btn-vibrant" onclick="document.getElementById('pptInput').click()">
                     📎 PPTX kiválasztása
                 </button>
-                <div id="fileLabel" class="hidden" style="margin-top: 16px; color: var(--text-secondary); font-size: 0.85rem;"></div>
+                <div id="fileLabel" class="hidden hint"></div>
             </div>
             <div class="actions">
                 <button id="nextBtn" class="btn btn-accent" disabled>Tovább a beállításokhoz →</button>
@@ -215,7 +310,7 @@
         <!-- Step 2: Configure -->
         <section id="configSection" class="card hidden">
             <h2>⚙️ Beállítások</h2>
-            <p class="hint" style="margin-bottom:24px;">Hangminta, nyelv, üres dia hossza — az XTTS ezekkel olvassa fel a jegyzeteket.</p>
+            <p class="hint mb-6">Hangminta, nyelv, üres dia hossza — az XTTS ezekkel olvassa fel a jegyzeteket.</p>
 
             <div class="pn-grid">
                 <div class="pn-field">
@@ -224,7 +319,7 @@
                         <select id="voiceSelect"></select>
                         <button class="btn btn-secondary" onclick="VoicePicker.openUploadModal()" title="Új hangminta feltöltése">+ Új</button>
                     </div>
-                    <small style="color:#9ca3af; font-size:0.78rem;">A hangmintát mindenki látja, de törölni csak a feltöltő (vagy admin) tudja.</small>
+                    <small class="text-xs text-muted">A hangmintát mindenki látja, de törölni csak a feltöltő (vagy admin) tudja.</small>
                 </div>
 
                 <div class="pn-field">
@@ -238,11 +333,11 @@
                 <div class="pn-field">
                     <label>Üres jegyzetű dia hossza (mp)</label>
                     <input type="number" id="emptyDurInput" min="0.5" max="30" step="0.5" value="3.0">
-                    <small style="color:#9ca3af; font-size:0.78rem;">Ha egy diához nincs jegyzet, a dia ennyi másodpercig látszik csenddel.</small>
+                    <small class="text-xs text-muted">Ha egy diához nincs jegyzet, a dia ennyi másodpercig látszik csenddel.</small>
                 </div>
             </div>
 
-            <div class="actions" style="margin-top:24px; display:flex; gap:8px;">
+            <div class="actions row mt-6">
                 <button class="btn btn-secondary" onclick="resetToUpload()">← Új PPTX</button>
                 <button id="startBtn" class="btn btn-accent" onclick="startProcess()">Feldolgozás indítása →</button>
             </div>
@@ -252,11 +347,11 @@
         <section id="statusSection" class="card hidden">
             <h2>⏳ Feldolgozás <span id="stageBadge" class="pn-stage-badge pn-stage-queued">queued</span></h2>
             <div class="pn-progress-wrap">
-                <div id="progressDetail" style="color:#e5e7eb;">Indulás…</div>
+                <div id="progressDetail" >Indulás…</div>
                 <div class="pn-progress-bar"><div class="pn-progress-fill" id="progressFill"></div></div>
-                <div style="margin-top:8px; font-size:0.8rem; color:#9ca3af;" id="progressPct">0%</div>
+                <div class="text-xs text-muted mt-2" id="progressPct">0%</div>
             </div>
-            <div class="actions" style="margin-top:16px; display:flex; gap:8px;">
+            <div class="actions row mt-4">
                 <button class="btn btn-secondary" onclick="cancelCurrentJob()" id="cancelBtn">Leállítás</button>
             </div>
         </section>
@@ -265,7 +360,7 @@
         <section id="downloadSection" class="card hidden">
             <h2>✅ Kész!</h2>
             <p class="hint">A narrált videó elkészült.</p>
-            <div class="actions" style="display:flex; gap:8px; margin-top:18px;">
+            <div class="actions row mt-5">
                 <a id="downloadLink" class="btn btn-accent" href="#" download>⬇ Videó letöltése</a>
                 <button class="btn btn-secondary" onclick="openPreview(_currentJobId)">👁 Előnézet</button>
                 <button class="btn btn-secondary" onclick="resetToUpload()">↺ Új PPTX</button>
@@ -273,10 +368,10 @@
         </section>
 
         <!-- Step E: Error -->
-        <section id="errorSection" class="card hidden" style="border-left:3px solid #ef4444;">
-            <h2 style="color:#ef4444;">❌ Hiba</h2>
-            <div id="errorDetail" style="color:#fca5a5; margin-bottom:14px;">—</div>
-            <div class="actions" style="display:flex; gap:8px;">
+        <section id="errorSection" class="card hidden is-error-row">
+            <h2 class="text-danger">❌ Hiba</h2>
+            <div id="errorDetail" class="text-danger mb-4">—</div>
+            <div class="actions row">
                 <button class="btn btn-secondary" onclick="retryCurrentJob()">Újra</button>
                 <button class="btn btn-secondary" onclick="resetToUpload()">↺ Új PPTX</button>
             </div>
@@ -286,27 +381,30 @@
         <div id="previewModal" class="preview-overlay hidden" onclick="_previewBackdropClick(event)">
             <div class="preview-box" onclick="event.stopPropagation()">
                 <button type="button" class="preview-close" onclick="closePreview()" title="Bezárás" aria-label="Bezárás">×</button>
-                <h2 style="margin:0 0 12px; padding-right:24px;">👁 Előnézet</h2>
+                <h2 class="modal-title">👁 Előnézet</h2>
                 <video id="previewVideo" class="preview-video" controls preload="metadata"></video>
-                <div id="previewErrorBanner" class="hidden" style="margin-top:8px; padding:8px 12px; background:rgba(239,68,68,0.12); border:1px solid #ef4444; border-radius:6px; color:#fca5a5; font-size:0.85rem;"></div>
+                <div id="previewErrorBanner" class="inline-error hidden" role="alert"></div>
                 <!-- SYNC-PPT-CHAP-2: a böngésző natív <video> lejátszója nem
                      jeleníti meg az MP4-be ágyazott fejezeteket — ez a saját,
                      kattintható fejezetlista (dia-cím + időpont → ugrás). -->
-                <div id="previewChapters" class="hidden" style="margin-top:10px; max-height:140px; overflow-y:auto; flex-wrap:wrap; gap:6px;"></div>
+                <div id="previewChapters" class="hidden chapter-list"></div>
                 <div class="preview-actions">
                     <a id="previewDownloadBtn" class="btn btn-accent" href="#" download>⬇ Letöltés</a>
                     <button type="button" class="btn btn-secondary" onclick="togglePreviewSlideList()">🎬 Slide-regen</button>
                 </div>
                 <div id="previewSlideList" class="preview-slidelist hidden">
-                    <div id="previewSlideListBody" style="color:#9ca3af; font-size:0.85rem;">Betöltés…</div>
+                    <div id="previewSlideListBody" class="text-sm text-muted">Betöltés…</div>
                 </div>
             </div>
         </div>
     </main>
 </div>
 
-<script src="dedup.js"></script>
-<script src="ppt_narrate.js?v=12"></script>
+<!-- a darabolt feltöltéshez; a dedup.js az upload_queue.js ELŐTT kell
+     (az UploadQueue a szignatúrát a DedupUpload-dal számolja) -->
+<script src="dedup.js?v=38521c9819"></script>
+<script src="upload_queue.js?v=e5d8ea7fb0"></script>
+<script src="ppt_narrate.js?v=a2e1000d82"></script>
 <script>
     (function () {
         if (typeof renderProcessBanner === 'function') {

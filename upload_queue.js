@@ -29,7 +29,8 @@
  * Callback contract:
  *   onProgress({token, name, totalBytes, sentBytes, percent, state})
  *     state: "hashing" | "init" | "uploading" | "finalizing" | "done" | "error" | "cancelled" | "skipped"
- *   onComplete({token, name, item_id, job_id, skipped, signature})
+ *   onComplete({token, name, item_id, job_id, path, flow_run_id, response, skipped, signature})
+ *     response: the raw /finalize JSON (purpose-specific fields, e.g. course_zip → course_id)
  *   onError({token, name, error, isFatal})
  *   onQueue({active, queued, max})  (called on every state change)
  */
@@ -37,6 +38,8 @@
   "use strict";
 
   var API_BASE = "api/batch/upload";
+  // Félbemaradt feltöltés azonosítója, a fájl szignatúrájához kötve (folytatás).
+  var RESUME_PREFIX = "edti-upload-resume:";
   var CONCURRENCY_KEY = "dub_upload_concurrency";
   var DEFAULT_CONCURRENCY = 2;
   var MIN_CONCURRENCY = 1;
@@ -312,38 +315,81 @@
         }
         if (signal.aborted) throw new Error("Aborted");
 
-        // 2) Init the upload server-side.
+        // 2) FOLYTATÁS, ha lehet. A szerver megtervezte (GET /status/{id} →
+        //    received_chunks), a kliens eddig mégis MINDEN próbálkozásnál új
+        //    /init-et kért: egy 30 s-nál hosszabb hálózati kiesés (laptop
+        //    alvás, Wi-Fi-váltás — ennyi a darabonkénti újrapróbálás kerete)
+        //    után egy többgigás videó elölről indult. Most a félbemaradt
+        //    feltöltés azonosítója a szignatúrához kötve eltárolódik, és
+        //    ugyanannak a fájlnak az újabb feltöltése — AZONOS beállításokkal,
+        //    mert a szerver az eredeti /init beállításaival fejezi be — a meglévő
+        //    darabok után folytatódik. (Funkció-ellenőrzés, 8/12.)
         emitProg(0, file.size, "init");
-        var initBody = {
-          filename: file.name,
-          total_size: file.size,
-          signature: signature,
-          mode: item.extras.mode || "dub_full",
-          language: item.extras.language || "hun",
-          preset: item.extras.preset || "youtube",
-          loudness: !!item.extras.loudness,
-        };
-        // Upload purpose: "flow_input" tells the server to accept the wider
-        // Flow Builder extension set (.pptx, …) and to ONLY stage the file
-        // (no phantom batch_queue job). Defaults to "batch" server-side.
-        if (item.extras.purpose) {
-          initBody.purpose = item.extras.purpose;
-        }
-        // Pre-process chain: ha az extras-ben van chain_before, a backend
-        // flow-engine veszi át (NEM a batch_queue). Pl. "intro_outro után
-        // subtitle" — egy multi-stage flow-runt indít.
-        if (item.extras.chain_before && item.extras.chain_before.length > 0) {
-          initBody.chain_before = item.extras.chain_before;
-        }
-        var initRes = await jsonFetch(API_BASE + "/init", initBody, signal);
-        var initJson;
+        var resumeKey = RESUME_PREFIX + signature;
+        var resumeSig = JSON.stringify([
+          file.name, file.size, item.extras.mode || "dub_full", item.extras.purpose || "",
+          item.extras.language || "hun", item.extras.preset || "youtube",
+          !!item.extras.loudness, item.extras.chain_before || [],
+        ]);
+        var initJson = null;
         try {
-          initJson = await initRes.json();
+          var saved = JSON.parse(window.localStorage.getItem(resumeKey) || "null");
+          if (saved && saved.upload_id && saved.sig === resumeSig) {
+            var stRes = await fetch(API_BASE + "/status/" + encodeURIComponent(saved.upload_id),
+              {credentials: "same-origin", signal: signal});
+            if (stRes.ok) {
+              var stJson = await stRes.json();
+              initJson = {
+                status: "ok",
+                upload_id: stJson.upload_id,
+                chunk_size: stJson.chunk_size,
+                received_chunks: stJson.received_chunks || [],
+              };
+            }
+          }
+          if (!initJson && saved) window.localStorage.removeItem(resumeKey);
         } catch (e) {
-          initJson = {};
+          if (signal.aborted) throw e;
+          initJson = null;   // localStorage tiltva / a státusz nem jött — új feltöltés
         }
-        if (!initRes.ok) {
-          throw new Error("Init failed: HTTP " + initRes.status + " — " + (initJson.detail || ""));
+
+        if (!initJson) {
+          var initBody = {
+            filename: file.name,
+            total_size: file.size,
+            signature: signature,
+            mode: item.extras.mode || "dub_full",
+            language: item.extras.language || "hun",
+            preset: item.extras.preset || "youtube",
+            loudness: !!item.extras.loudness,
+          };
+          // Upload purpose: "flow_input" tells the server to accept the wider
+          // Flow Builder extension set (.pptx, …) and to ONLY stage the file
+          // (no phantom batch_queue job). Defaults to "batch" server-side.
+          if (item.extras.purpose) {
+            initBody.purpose = item.extras.purpose;
+          }
+          // Pre-process chain: ha az extras-ben van chain_before, a backend
+          // flow-engine veszi át (NEM a batch_queue). Pl. "intro_outro után
+          // subtitle" — egy multi-stage flow-runt indít.
+          if (item.extras.chain_before && item.extras.chain_before.length > 0) {
+            initBody.chain_before = item.extras.chain_before;
+          }
+          var initRes = await jsonFetch(API_BASE + "/init", initBody, signal);
+          try {
+            initJson = await initRes.json();
+          } catch (e) {
+            initJson = {};
+          }
+          if (!initRes.ok) {
+            throw new Error("Init failed: HTTP " + initRes.status + " — " + (initJson.detail || ""));
+          }
+          if (initJson.upload_id) {
+            try {
+              window.localStorage.setItem(resumeKey, JSON.stringify(
+                {upload_id: initJson.upload_id, sig: resumeSig, ts: Date.now()}));
+            } catch (e) { /* localStorage tiltva — folytatás nélkül */ }
+          }
         }
         if (initJson.status === "duplicate") {
           // Existing prior upload by this user — skip.
@@ -440,6 +486,9 @@
         } catch (e) {
           finJson = {};
         }
+        // A finalize után (sikerült vagy végleg elbukott, pl. hibás
+        // szignatúra) nincs mit folytatni.
+        try { window.localStorage.removeItem(resumeKey); } catch (e) { /* ignore */ }
         if (!finRes.ok) {
           throw new Error("Finalize failed: HTTP " + finRes.status + " — " + (finJson.detail || ""));
         }
@@ -458,6 +507,9 @@
           // FlowEngine._seed_upload_nodes errors with "Hiányzó input fájl".
           path: finJson.path || null,
           flow_run_id: finJson.flow_run_id || null,
+          // A finalize teljes válasza — a céltól függő mezőkkel (pl. a
+          // course_zip-é: course_id, video_count). (Funkció-ellenőrzés, 9/12.)
+          response: finJson,
           skipped: false,
           signature: signature,
         });

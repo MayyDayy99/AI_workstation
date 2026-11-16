@@ -460,9 +460,9 @@
     // Empty-specs (fetch fail) → persistent retry blokk, ne csak 3.5s toast.
     if (Object.keys(state.nodeTypeSpecs).length === 0) {
       el.innerHTML = `
-        <div style="color:#ef4444; font-size:0.85rem; padding:10px; border:1px solid #ef4444; border-radius:6px; background:rgba(239,68,68,0.08);">
+        <div class="fb-error">
           ⚠️ Node-típusok betöltése sikertelen.
-          <button id="paletteRetryBtn" class="btn btn-secondary" style="margin-top:10px; width:100%; font-size:0.82rem;">🔄 Újratöltés</button>
+          <button id="paletteRetryBtn" class="btn btn-secondary mt-2 full-width text-xs">🔄 Újratöltés</button>
         </div>
       `;
       const retry = document.getElementById("paletteRetryBtn");
@@ -486,9 +486,9 @@
     el.innerHTML = items.map(t => {
       const isSource = t.name === "upload";
       const isSink = t.name === "download";
-      const extra = isSource ? ' style="border-color:rgba(16,185,129,0.45);"' : (isSink ? ' style="border-color:rgba(245,158,11,0.45);"' : '');
+      const extra = isSource ? ' fb-node-source' : (isSink ? ' fb-node-sink' : '');
       return `
-        <div class="palette-node" draggable="true" data-node-type="${t.name}" title="${_esc(t.description || "")}"${extra}>${_esc(t.label || t.name)}</div>
+        <div class="palette-node${extra}" draggable="true" data-node-type="${t.name}" title="${_esc(t.description || "")}">${_esc(t.label || t.name)}</div>
       `;
     }).join("");
     el.querySelectorAll(".palette-node").forEach(node => {
@@ -513,7 +513,7 @@
       return true;
     });
     if (filtered.length === 0) {
-      el.innerHTML = `<div style="color:#6b7280; font-size:0.8rem; padding:8px 0;">Nincs sablon ebben a kategóriában.</div>`;
+      el.innerHTML = `<div class="text-xs text-muted">Nincs sablon ebben a kategóriában.</div>`;
     } else {
       el.innerHTML = filtered.map(t => `
         <div class="tpl-item" data-tpl-id="${t.id}">
@@ -521,7 +521,7 @@
             <div class="tpl-name">${_esc(t.name)}</div>
             <div class="tpl-meta">${_esc(t.owner)} · ${_esc((t.updated_at || "").slice(0, 16))}</div>
           </div>
-          <span style="font-size:0.7rem; color:#a5b4fc;">↗</span>
+          <span class="text-xs text-accent">↗</span>
         </div>
       `).join("");
       el.querySelectorAll(".tpl-item").forEach(item => {
@@ -694,7 +694,7 @@
       if (!onboard) {
         onboard = document.createElement("div");
         onboard.className = "canvas-onboarding";
-        onboard.innerHTML = "<div style='font-size:2.5rem; margin-bottom:12px;'>📐</div><div style='font-size:1rem; font-weight:600; margin-bottom:6px;'>Üres kanvas</div><div style='font-size:0.85rem; color:#9ca3af;'>Húzz ide egy csempét a bal oldali palettáról<br>vagy tölts be egy sablont.</div>";
+        onboard.innerHTML = "<div class='fb-empty-icon'>📐</div><div class='fb-empty-title'>Üres kanvas</div><div class='text-sm text-secondary'>Húzz ide egy csempét a bal oldali palettáról<br>vagy tölts be egy sablont.</div>";
         canvas.appendChild(onboard);
       }
     } else if (onboard) {
@@ -718,7 +718,7 @@
         if (node.config && node.config.uploaded_filename) {
           uploadBadge = `<div class="upload-file-badge" title="${_esc(node.config.uploaded_path || '')}">📎 ${_esc(node.config.uploaded_filename)}</div>`;
         } else {
-          uploadBadge = `<div class="upload-file-badge" style="background:rgba(99,102,241,0.08); color:#a5b4fc; border-color:rgba(99,102,241,0.35);">📁 Válassz fájlt jobbra →</div>`;
+          uploadBadge = `<div class="upload-file-badge is-selected">📁 Válassz fájlt jobbra →</div>`;
         }
       }
       div.innerHTML = `
@@ -889,9 +889,10 @@
     const svg = document.getElementById("flowEdges");
     if (svg) {
       _edgePreviewPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      _edgePreviewPath.setAttribute("stroke", "#a78bfa");
-      _edgePreviewPath.setAttribute("stroke-width", "3");
-      _edgePreviewPath.setAttribute("stroke-dasharray", "5,5");
+      // Az SVG PREZENTÁCIÓS ATTRIBÚTUM nem vesz fel CSS-változót
+      // (stroke="var(--x)" érvénytelen), ezért a szín osztályból jön —
+      // a .flow-edge-preview a flow.html lap-szintű --flow-accent-jét olvassa.
+      _edgePreviewPath.setAttribute("class", "flow-edge-preview");
       _edgePreviewPath.setAttribute("fill", "none");
       _edgePreviewPath.style.pointerEvents = "none";
       svg.appendChild(_edgePreviewPath);
@@ -1221,7 +1222,7 @@
     const spec = state.nodeTypeSpecs[node.type] || {};
     el.innerHTML = `
       <h3>${_esc(spec.label || node.type)}</h3>
-      <p style="font-size:0.8rem; color:#9ca3af; margin:0 0 14px;">${_esc(spec.description || "")}</p>
+      <p class="text-xs text-secondary mb-4">${_esc(spec.description || "")}</p>
       <div id="propsForm">${_renderPropsForm(node)}</div>
     `;
     _attachPropsEvents(node);
@@ -1272,7 +1273,7 @@
       case "subtitle":
       case "transcribe":
         return `
-          <p style="font-size:0.85rem; color:#9ca3af;">Nincs külön beállítás — automatikus magyar ASR + felirat/leirat-export.</p>
+          <p class="text-sm text-secondary">Nincs külön beállítás — automatikus magyar ASR + felirat/leirat-export.</p>
         `;
       case "ppt_narrate":
         return `
@@ -1285,30 +1286,30 @@
           <input type="number" data-cfg="empty_slide_dur" min="0.5" step="0.5" value="${node.config.empty_slide_dur || 3.0}">
         `;
       case "ppt_replace":
-        return `<p style="font-size:0.85rem; color:#9ca3af;">PPT-csere — alap beállítás. V2 finomítás külön.</p>`;
+        return `<p class="text-sm text-secondary">PPT-csere — alap beállítás. V2 finomítás külön.</p>`;
       case "upload": {
         const fname = node.config.uploaded_filename;
         const path = node.config.uploaded_path;
         const sizeKb = node.config.uploaded_size_kb;
         const hasFile = !!path;
         return `
-          <p style="font-size:0.85rem; color:#9ca3af;">Bemeneti fájl. Tölts fel itt előre, vagy hagyd üresen — az Indítás gomb felugró ablakából is megy.</p>
-          <div id="uploadNodeStatus" style="margin-top:12px; padding:10px 12px; border-radius:6px; ${hasFile ? 'background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.35);' : 'background:rgba(99,102,241,0.06); border:1px solid #374151;'}">
+          <p class="text-sm text-secondary">Bemeneti fájl. Tölts fel itt előre, vagy hagyd üresen — az Indítás gomb felugró ablakából is megy.</p>
+          <div id="uploadNodeStatus" class="upload-node-status${hasFile ? ' is-filled' : ''}">
             ${hasFile
-              ? `<div style="font-size:0.82rem; color:#10b981; font-weight:600; margin-bottom:4px;">✓ Feltöltve</div>
-                 <div style="font-size:0.82rem; color:#e5e7eb;">${_esc(fname || '(ismeretlen)')}</div>
-                 <div style="font-size:0.72rem; color:#9ca3af; margin-top:2px;">${sizeKb ? (sizeKb / 1024).toFixed(1) + ' MB' : ''}</div>`
-              : `<div style="font-size:0.82rem; color:#9ca3af;">Nincs fájl feltöltve.</div>`}
+              ? `<div class="text-xs text-success font-semibold">✓ Feltöltve</div>
+                 <div class="text-xs">${_esc(fname || '(ismeretlen)')}</div>
+                 <div class="text-2xs text-secondary">${sizeKb ? (sizeKb / 1024).toFixed(1) + ' MB' : ''}</div>`
+              : `<div class="text-xs text-secondary">Nincs fájl feltöltve.</div>`}
           </div>
-          <div id="uploadNodeProgress_${node.id}" class="hidden" style="margin-top:10px;">
-            <div style="background:#0f172a; border-radius:4px; height:8px; overflow:hidden; border:1px solid #374151;">
-              <div id="uploadNodeProgressFill_${node.id}" style="background:#6366f1; height:100%; width:0%; transition:width 0.2s;"></div>
+          <div id="uploadNodeProgress_${node.id}" class="hidden mt-2">
+            <div class="fb-progress">
+              <div id="uploadNodeProgressFill_${node.id}" class="fb-progress-fill"></div>
             </div>
-            <div id="uploadNodeProgressLabel_${node.id}" style="font-size:0.72rem; color:#9ca3af; margin-top:4px;">Feltöltés…</div>
+            <div id="uploadNodeProgressLabel_${node.id}" class="text-2xs text-secondary mt-1">Feltöltés…</div>
           </div>
-          <div style="margin-top:10px; display:flex; gap:6px;">
-            <button class="btn btn-secondary" style="font-size:0.82rem;" onclick="FlowBuilder._uploadFileForNode('${node.id}')">📁 ${hasFile ? 'Csere' : 'Fájl feltöltése'}</button>
-            ${hasFile ? `<button class="btn btn-secondary" style="font-size:0.82rem; color:#ef4444; border-color:#ef4444;" onclick="FlowBuilder._clearNodeFile('${node.id}')">✕ Eltávolítás</button>` : ''}
+          <div class="row mt-2">
+            <button class="btn btn-secondary text-xs" onclick="FlowBuilder._uploadFileForNode('${node.id}')">📁 ${hasFile ? 'Csere' : 'Fájl feltöltése'}</button>
+            ${hasFile ? `<button class="btn btn-secondary text-xs btn-danger-quiet" onclick="FlowBuilder._clearNodeFile('${node.id}')">✕ Eltávolítás</button>` : ''}
           </div>
         `;
       }
@@ -1324,7 +1325,7 @@
           // Async-fetch a render után — különben a propsForm üresen marad.
           setTimeout(() => _hydrateDownloadAssets(node.id, state.currentFlowRunId, placeholderId), 0);
         }
-        return `<p style="font-size:0.85rem; color:#9ca3af;">Terminál node: a flow eredményeit gyűjti össze. Futás után a job-listából tölthető le. Több bemenete is lehet (videó / felirat / leirat).</p>${assetsBlock}`;
+        return `<p class="text-sm text-secondary">Terminál node: a flow eredményeit gyűjti össze. Futás után a job-listából tölthető le. Több bemenete is lehet (videó / felirat / leirat).</p>${assetsBlock}`;
       }
       default:
         return `<p>Nincs config-form ehhez a típushoz.</p>`;
@@ -1389,6 +1390,17 @@
       return;
     }
     const data = _buildCanonical();
+    // A feltöltött fájl a szerveren, a feltöltő saját jobjában él: a szerver-
+    // útvonala és a neve nem tartozik a flow LEÍRÁSÁHOZ (a megosztott sablon
+    // is levágja, UI-26), egy importált flow-val úgysem indítható — az
+    // upload-node-ba új fájl kell. Eddig a JSON mindkettőt hordozta. (UI-34)
+    const UPLOADED = ["uploaded_path", "uploaded_filename", "uploaded_size_kb"];   // = backend _UPLOADED_FILE_KEYS
+    data.nodes = data.nodes.map(n => {
+      if (!n.config || !UPLOADED.some(k => k in n.config)) return n;
+      const config = Object.assign({}, n.config);
+      UPLOADED.forEach(k => { delete config[k]; });
+      return Object.assign({}, n, { config });
+    });
     // Stamp-elés: kliens-side time-bélyeg, hogy az import-when ismerje a kort.
     data._exported_at = new Date().toISOString();
     data._exporter = "flow_builder.js v3";
@@ -1947,7 +1959,7 @@
             <button type="button" class="slot-browse" data-slot-browse="${_esc(n.id)}">📁 Tallóz</button>
           </div>
           <div class="slot-drophint">${filled ? '✓ ' + fileLabel : fileLabel}</div>
-          <input type="file" data-slot-input="${_esc(n.id)}" style="display:none;">
+          <input type="file" data-slot-input="${_esc(n.id)}" class="hidden">
         </div>
       `;
     }).join("");
@@ -1986,7 +1998,7 @@
     if (slot) {
       slot.classList.add("filled");
       const hint = slot.querySelector(".slot-drophint");
-      if (hint) hint.innerHTML = `📎 ${_esc(file.name)} <span style="color:#9ca3af;">(${(file.size / 1024 / 1024).toFixed(1)} MB)</span>`;
+      if (hint) hint.innerHTML = `📎 ${_esc(file.name)} <span class="text-secondary">(${(file.size / 1024 / 1024).toFixed(1)} MB)</span>`;
     }
   }
 
@@ -2209,14 +2221,14 @@
     const mobileEl = document.getElementById("mobileRunsList");
     if (!el && !mobileEl) return;
     if (!runs.length) {
-      const emptyHtml = `<div style="color:#6b7280; font-size:0.8rem;">Még nincs futás.</div>`;
+      const emptyHtml = `<div class="text-xs text-muted">Még nincs futás.</div>`;
       if (el) el.innerHTML = emptyHtml;
       if (mobileEl) mobileEl.innerHTML = emptyHtml;
       return;
     }
     const html = runs.map(r => {
       const isCurrent = r.id === state.currentFlowRunId;
-      const currentChip = isCurrent ? ` <span style="font-size:0.65rem; padding:1px 5px; background:#6366f1; color:#fff; border-radius:3px; margin-left:4px;">most futó</span>` : "";
+      const currentChip = isCurrent ? ` <span class="fb-now-chip">most futó</span>` : "";
       // Per-run action buttons
       const isTerminal = _TERMINAL_RUN_STATUSES.has(r.status);
       const isDone = r.status === "done";
@@ -2232,7 +2244,7 @@
       <div class="run-row${isCurrent ? " current" : ""}" data-run-id="${_esc(r.id)}">
         <span class="run-name">${_esc(r.name || r.id.slice(0, 8))}${currentChip}</span>
         <div class="run-progress"><div class="run-progress-fill" style="width:${r.progress_pct || 0}%;"></div></div>
-        <span style="font-size:0.72rem; color:#9ca3af;">${r.progress_pct || 0}%</span>
+        <span class="text-2xs text-secondary">${r.progress_pct || 0}%</span>
         <span class="run-status ${_esc(r.status)}">${_esc(r.status)}</span>
         <div class="run-actions">${actions.join("")}</div>
       </div>
@@ -2326,7 +2338,7 @@
         const baseName = a.output_name || a.asset_type;
         const name = baseName || (url !== "#" ? url.split("/").pop() : "letöltés");
         const sizeKb = a.size_bytes ? ` (${(a.size_bytes / 1024).toFixed(0)} KB)` : "";
-        return `<div style="margin-top:6px;"><a href="${_esc(url)}" target="_blank" rel="noopener" style="color:#a5b4fc; word-break:break-all;">📎 ${_esc(name)}${_esc(sizeKb)}</a></div>`;
+        return `<div class="mt-2"><a href="${_esc(url)}" target="_blank" rel="noopener" class="text-accent break-all">📎 ${_esc(name)}${_esc(sizeKb)}</a></div>`;
       }).join("");
     }
     if (okBtn) { okBtn.textContent = "Bezár"; okBtn.style.display = ""; }
@@ -2454,7 +2466,7 @@
         credentials: "same-origin",
       });
       if (r.status === 404) {
-        target.innerHTML = `<h4>📦 Letöltés</h4><p style="font-size:0.82rem; color:#9ca3af;">Az asset-lista API még nem elérhető. <a href="index.html" style="color:#a5b4fc;">Nyisd meg a feladatok listáját →</a></p>`;
+        target.innerHTML = `<h4>📦 Letöltés</h4><p class="text-xs text-secondary">Az asset-lista API még nem elérhető. <a href="index.html" class="text-accent">Nyisd meg a feladatok listáját →</a></p>`;
         return;
       }
       if (!r.ok) throw new Error("HTTP " + r.status);
@@ -2465,7 +2477,7 @@
       const nodeFiltered = assets.filter(a => !a.node_id || a.node_id === nodeId);
       const effective = nodeFiltered.length > 0 ? nodeFiltered : assets;
       if (!Array.isArray(effective) || effective.length === 0) {
-        target.innerHTML = `<h4>📦 Letöltés</h4><p style="font-size:0.82rem; color:#9ca3af;">Nincs publikált asset. <a href="index.html" style="color:#a5b4fc;">Job-lista →</a></p>`;
+        target.innerHTML = `<h4>📦 Letöltés</h4><p class="text-xs text-secondary">Nincs publikált asset. <a href="index.html" class="text-accent">Job-lista →</a></p>`;
         return;
       }
       const items = effective.map(a => {
@@ -2486,7 +2498,7 @@
         nodeDiv.appendChild(badge);
       }
     } catch (e) {
-      target.innerHTML = `<h4>📦 Letöltés</h4><p style="font-size:0.82rem; color:#f87171;">Asset-lista hiba: ${_esc(e.message || String(e))}.</p><p style="font-size:0.82rem;"><a href="index.html" style="color:#a5b4fc;">Job-lista →</a></p>`;
+      target.innerHTML = `<h4>📦 Letöltés</h4><p class="text-xs text-danger">Asset-lista hiba: ${_esc(e.message || String(e))}.</p><p class="text-xs"><a href="index.html" class="text-accent">Job-lista →</a></p>`;
     }
   }
 

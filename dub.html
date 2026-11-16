@@ -11,8 +11,10 @@
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon.svg">
     <title>EDTI Stúdió — Szinkron</title>
-    <link rel="stylesheet" href="style.css?v=3">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=b2484b1bda">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="mock_core.js"></script>
 <script src="mock_routes_core.js"></script>
 <script src="mock_routes_batch.js"></script>
@@ -20,33 +22,30 @@
 <script src="mock_routes_flow.js"></script>
 <script src="mock_routes_subtitle.js"></script>
 <script src="mock_routes_misc.js"></script>
-<script src="shared.js?v=11"></script>
+<script src="mock_routes_extra.js"></script>
+<script src="shared.js?v=fc5bbe1843"></script>
 </head>
 
 <body>
     <div class="app-container">
         <aside class="sidebar">
             <div class="brand">
-                <a href="index.html" style="text-decoration:none;">
+                <a href="index.html">
                     <h1>EDTI Stúdió</h1>
                 </a>
-                <div id="userDisplay" style="font-size:0.8rem; color:#555; margin-top:4px;"></div>
+                <div id="userDisplay" class="ws-switch"></div>
             </div>
-            <div style="padding: 0 1rem; margin-bottom: 0.5rem;">
-                <a href="index.html" class="back-to-hub">← Vissza a főoldalra</a>
-            </div>
-            <div style="padding: 0 1rem; margin-bottom: 0.5rem;">
-                <a href="batch.html" class="btn btn-secondary" style="width:100%; display:block; text-align:center;">Batch mód →</a>
-            </div>
-            <div style="padding: 0 1rem; margin-bottom: 1rem;">
-                <button onclick="logoutUser()" class="btn btn-secondary" style="width:100%; display:block; text-align:center; font-size:0.8rem; opacity:0.7;">🚪 Kijelentkezés</button>
-            </div>
-            <div style="padding: 0 4px; margin-bottom: 0.5rem;">
-                <div class="date-filter-pills" id="historyDatePills">
-                    <button class="date-pill active" id="hpAll"   onclick="setHistoryDateFilter('all')">Összes</button>
-                    <button class="date-pill"        id="hpToday" onclick="setHistoryDateFilter('today')">📅 Ma</button>
-                    <button class="date-pill"        id="hpYest"  onclick="setHistoryDateFilter('yesterday')">🗓 Tegnap</button>
-                </div>
+
+            <nav class="sidebar-nav" aria-label="Fő navigáció">
+                <a href="batch.html" class="btn btn-secondary btn-block">Batch mód →</a>
+                <a href="index.html" class="btn btn-secondary btn-block">← Vissza a főoldalra</a>
+            </nav>
+
+            <div class="sidebar-section-label">Előzmények</div>
+            <div class="date-filter-pills" id="historyDatePills" role="group" aria-label="Előzmények szűrése dátum szerint">
+                <button class="date-pill active" id="hpAll"   onclick="setHistoryDateFilter('all')" aria-pressed="true">Összes</button>
+                <button class="date-pill"        id="hpToday" onclick="setHistoryDateFilter('today')" aria-pressed="false">📅 Ma</button>
+                <button class="date-pill"        id="hpYest"  onclick="setHistoryDateFilter('yesterday')" aria-pressed="false">🗓 Tegnap</button>
             </div>
             <div class="history-list" id="jobHistory">
                 <div class="empty-history">Nincs korábbi feladat</div>
@@ -57,27 +56,27 @@
                 <div class="monitor-row">
                     <span class="monitor-label">CPU</span>
                     <div class="monitor-bar-bg">
-                        <div class="monitor-bar-fill" id="monCpu" style="width:0%"></div>
+                        <div class="monitor-bar-fill" id="monCpu"></div>
                     </div>
                     <span class="monitor-val" id="monCpuTxt">–</span>
                 </div>
                 <div class="monitor-row">
                     <span class="monitor-label">VRAM</span>
                     <div class="monitor-bar-bg">
-                        <div class="monitor-bar-fill" id="monVram" style="width:0%"></div>
+                        <div class="monitor-bar-fill" id="monVram"></div>
                     </div>
                     <span class="monitor-val" id="monVramTxt">–</span>
                 </div>
                 <div class="monitor-row">
                     <span class="monitor-label">RAM</span>
                     <div class="monitor-bar-bg">
-                        <div class="monitor-bar-fill" id="monRam" style="width:0%"></div>
+                        <div class="monitor-bar-fill" id="monRam"></div>
                     </div>
                     <span class="monitor-val" id="monRamTxt">–</span>
                 </div>
-                <div class="monitor-row" style="margin-top:2px;">
-                    <span class="monitor-label" style="min-width:64px; color:#555;">Törölhető</span>
-                    <span class="monitor-val" id="monStorageTxt" style="text-align:left; flex:1; color:#10b981; font-weight:600;">–</span>
+                <div class="monitor-row monitor-row-storage">
+                    <span class="monitor-label">Törölhető</span>
+                    <span class="monitor-val" id="monStorageTxt">–</span>
                 </div>
                 <div class="monitor-queue">Sor: <span id="monQueue">–</span> | Fut: <span id="monRunning">–</span></div>
             </div>
@@ -93,7 +92,7 @@
                 <h2>Videó feltöltése</h2>
                 <div class="upload-area" id="videoDropZone">
                     <p>Húzd ide a videót (MP4, MOV, MKV)</p>
-                    <input type="file" id="videoInput" accept=".mp4,.mov,.mkv" hidden>
+                    <input type="file" id="videoInput" accept=".mp4,.mov,.mkv,.f4v,.avi" hidden>
                     <button class="btn btn-primary" onclick="document.getElementById('videoInput').click()">Videó kiválasztása</button>
                     <span id="videoFileName" class="file-name"></span>
                 </div>
@@ -123,42 +122,15 @@
                     </div>
                 </div>
 
-                <!-- Haladó beállítások: nyelvi preset, loudness, stb. A lap
-                     alap felülete tiszta marad, az itteni opciókat a
-                     felhasználó csak akkor bontja ki, amikor eltér az
-                     alapbeállítástól. -->
-                <details class="advanced-settings" id="advancedSettings">
-                    <summary>⚙️ Haladó beállítások</summary>
-                    <div class="advanced-body">
-                        <div class="field-row">
-                            <label for="advLanguage">Cél nyelv</label>
-                            <select id="advLanguage">
-                                <option value="hun">Magyar (alapértelmezett)</option>
-                                <option value="eng">Angol</option>
-                            </select>
-                        </div>
-                        <div class="field-row">
-                            <label for="advPreset">Minőségi előbeállítás</label>
-                            <select id="advPreset">
-                                <option value="youtube">YouTube (ajánlott)</option>
-                                <option value="fast">Gyors</option>
-                                <option value="archive">Archív (legjobb)</option>
-                                <option value="mobile">Mobil</option>
-                            </select>
-                        </div>
-                        <div class="field-row">
-                            <label for="advLoudness">Hangerő normalizálás</label>
-                            <label class="custom-checkbox" style="margin:0;">
-                                <input type="checkbox" id="advLoudness">
-                                <span class="checkmark"></span>
-                                EBU R128 (broadcast szabvány)
-                            </label>
-                        </div>
-                    </div>
-                </details>
+                <!-- „Haladó beállítások" eltávolítva: egyik vezérlőjét (cél nyelv,
+                     minőségi preset, hangerő-normalizálás) sem olvasta a JS, és
+                     a /api/start ilyen paramétert nem is fogad. A szinkron
+                     mindig magyar → angol; a „Cél nyelv" alapértéke ráadásul a
+                     magyar volt. A választás csendben hatástalan volt.
+                     (Funkció-ellenőrzés, 4/12.) -->
 
                 <!-- Rejtett: ezen a dedikált lapon mindig dub_full mód megy -->
-                <div style="display:none;">
+                <div hidden>
                     <input type="radio" name="procMode" value="dub_full" checked>
                 </div>
 
@@ -167,20 +139,25 @@
                 </div>
             </section>
 
-            <section id="statusSection" class="card hidden">
+            <!-- aria-live: a haladás képernyőolvasóval is követhető, enélkül a
+                 folyamat néma volt. `polite`, hogy ne vágjon közbe. -->
+            <section id="statusSection" class="card hidden" aria-live="polite">
                 <div class="status-header">
                     <h2 id="jobStatusTitle">Feldolgozás...</h2>
                     <span id="jobStageBadge" class="badge">Inicializálás</span>
                 </div>
-                <div id="forceContainer" class="hidden" style="margin-bottom: 10px;">
-                    <div style="display:flex; gap:10px;">
-                        <button id="forceStartBtn" class="btn btn-warning" style="background:#ff9800;color:white;">⚡ Azonnali indítás</button>
-                        <button id="cancelJobBtn" class="btn btn-danger" style="background:#ef4444;color:white;">✕ Mégse</button>
+                <div id="forceContainer" class="hidden">
+                    <div class="stuck-job-actions">
+                        <!-- Csak adminnak, és csak sorban álló (nem első) jobnál látszik.
+                             Eddig „⚡ Azonnali indítás" volt, és semmit nem csinált. -->
+                        <button id="forceStartBtn" class="btn btn-warning btn-sm">⚡ Sor elejére</button>
+                        <button id="cancelJobBtn" class="btn btn-danger btn-sm">✕ Mégse</button>
                     </div>
-                    <small style="display:block; color:#888; margin-top:5px">Használd, ha sorban ragadt</small>
+                    <p id="forceHint" class="text-xs text-muted">A sor elejére teszi — a futó feladatot nem szakítja meg.</p>
                 </div>
-                <div class="progress-bar-container">
-                    <div class="progress-bar" id="progressBar" style="width:0%"></div>
+                <div class="progress-bar-container" role="progressbar" id="progressTrack"
+                     aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-labelledby="jobStatusTitle">
+                    <div class="progress-bar" id="progressBar"></div>
                 </div>
                 <p id="statusDetail" class="status-detail">Feltöltés...</p>
             </section>
@@ -190,10 +167,14 @@
                     <h2>Szövegszerkesztő</h2>
                     <div class="editor-actions">
                         <input type="file" id="vttInput" accept=".vtt" hidden>
-                        <button id="importVttBtn" class="btn btn-secondary" onclick="document.getElementById('vttInput').click()">Import VTT</button>
-                        <button id="retranslateBtn" class="btn btn-secondary">Fordítás újra</button>
-                        <button id="saveSegmentsBtn" class="btn btn-secondary">Mentés</button>
-                        <button id="exportSubtitlesBtn" class="btn btn-accent hidden" style="background:#7c3aed;">📥 Felirat export</button>
+                        <button id="importVttBtn" class="btn btn-secondary btn-sm" onclick="document.getElementById('vttInput').click()">Import VTT</button>
+                        <button id="retranslateBtn" class="btn btn-secondary btn-sm">Fordítás újra</button>
+                        <button id="saveSegmentsBtn" class="btn btn-secondary btn-sm">Mentés</button>
+                        <!-- Másodlagos kimenet: a lap fő cselekvése a szinkron-
+                             generálás, ezért csak az kap akcentust. Korábban
+                             mindkettő akcentus-gomb volt, egyikük egy inline
+                             lila háttérrel felülírva. -->
+                        <button id="exportSubtitlesBtn" class="btn btn-secondary btn-sm hidden">📥 Felirat export</button>
                         <button id="generateDubBtn" class="btn btn-accent">Szinkron generálása</button>
                     </div>
                 </div>
@@ -214,20 +195,20 @@
             <section id="downloadSection" class="card hidden">
                 <h2>Letöltések</h2>
                 <div id="subtitleDownloads" class="hidden">
-                    <div id="subtitleQualityCard" class="hidden" style="background:#1a1a2e;border:1px solid #333;border-radius:10px;padding:14px 18px;margin-bottom:18px;font-size:0.85rem;color:#aaa;">
-                        <div style="font-weight:600;color:#10b981;margin-bottom:8px;">📊 Minőségi összefoglaló</div>
-                        <div id="subtitleQualityBody"></div>
+                        <div id="subtitleQualityCard" class="quality-card hidden">
+                        <div class="quality-card-title">📊 Minőségi összefoglaló</div>
+                        <div id="subtitleQualityBody" class="stat-row"></div>
                     </div>
                     <p class="hint">Válassz letöltési formátumot:</p>
                     <div class="download-grid">
-                        <div class="download-card"><span class="icon">🇭🇺</span><span class="label">Magyar felirat</span><div class="download-card-actions" style="flex-wrap:wrap;gap:4px;"><button class="btn btn-accent" style="font-size:0.8rem;flex:1;" onclick="downloadFile('hu.srt')">SRT</button><button class="btn btn-accent" style="font-size:0.8rem;flex:1;" onclick="downloadFile('hu.vtt')">VTT</button></div></div>
-                        <div class="download-card"><span class="icon">🇬🇧</span><span class="label">Angol felirat</span><div class="download-card-actions" style="flex-wrap:wrap;gap:4px;"><button class="btn btn-accent" style="font-size:0.8rem;flex:1;" onclick="downloadFile('en.srt')">SRT</button><button class="btn btn-accent" style="font-size:0.8rem;flex:1;" onclick="downloadFileByName('en.vtt')">VTT</button></div></div>
-                        <div class="download-card"><span class="icon">🌐</span><span class="label">Kétnyelvű felirat</span><div class="download-card-actions" style="flex-wrap:wrap;gap:4px;"><button class="btn btn-accent" style="font-size:0.8rem;flex:1;" onclick="downloadFile('bilingual.srt')">SRT</button><button class="btn btn-secondary" style="font-size:0.8rem;flex:1;" onclick="downloadBilingualVtt()">VTT</button></div></div>
-                        <div class="download-card"><span class="icon">📄</span><span class="label">Nyers adatok</span><div class="download-card-actions"><button class="btn btn-secondary" style="font-size:0.8rem;" onclick="downloadFile('segments.json')">JSON</button></div></div>
+                        <div class="download-card"><span class="icon">🇭🇺</span><span class="label">Magyar felirat</span><div class="download-card-actions"><button class="btn btn-accent" onclick="downloadFile('hu.srt')">SRT</button><button class="btn btn-accent" onclick="downloadFile('hu.vtt')">VTT</button></div></div>
+                        <div class="download-card"><span class="icon">🇬🇧</span><span class="label">Angol felirat</span><div class="download-card-actions"><button class="btn btn-accent" onclick="downloadFile('en.srt')">SRT</button><button class="btn btn-accent" onclick="downloadFileByName('en.vtt')">VTT</button></div></div>
+                        <div class="download-card"><span class="icon">🌐</span><span class="label">Kétnyelvű felirat</span><div class="download-card-actions"><button class="btn btn-accent" onclick="downloadFile('bilingual.srt')">SRT</button><button class="btn btn-secondary" onclick="downloadBilingualVtt()">VTT</button></div></div>
+                        <div class="download-card"><span class="icon">📄</span><span class="label">Nyers adatok</span><div class="download-card-actions"><button class="btn btn-secondary" onclick="downloadFile('segments.json')">JSON</button></div></div>
                     </div>
                 </div>
                 <div id="dubDownloads">
-                    <div style="margin-bottom:20px;">
+                    <div class="row save-row">
                         <button id="saveToDiskBtn" class="btn btn-primary" onclick="saveToLocalDisk()">💾 Mentés lemezre</button>
                     </div>
                     <p class="hint">Válassz hangverziót:</p>
@@ -237,16 +218,16 @@
                         <div class="download-card"><span class="icon">🎙️</span><span class="label">Csak hang (WAV)</span><div class="download-card-actions"><button class="btn btn-secondary" onclick="previewFile('voice_only.wav')">Megnéz</button><button class="btn btn-accent" onclick="downloadFile('voice_only.wav')">Letöltés</button></div></div>
                         <div class="download-card"><span class="icon">🎵</span><span class="label">Hang + háttér (WAV)</span><div class="download-card-actions"><button class="btn btn-secondary" onclick="previewFile('mix.wav')">Megnéz</button><button class="btn btn-accent" onclick="downloadFile('mix.wav')">Letöltés</button></div></div>
                         <div class="download-card"><span class="icon">🔊</span><span class="label">Eredeti hang (WAV)</span><div class="download-card-actions"><button class="btn btn-secondary" onclick="previewFile('original_audio.wav')">Megnéz</button><button class="btn btn-accent" onclick="downloadFile('original_audio.wav')">Letöltés</button></div></div>
-                        <div class="download-card"><span class="icon">📄</span><span class="label">Feliratok / Adatok</span><div class="download-card-actions" style="flex-wrap:wrap;gap:4px;"><button class="btn btn-secondary" style="font-size:0.8rem;flex:1;" onclick="downloadFile('dubbed.vtt')">VTT</button><button class="btn btn-secondary" style="font-size:0.8rem;flex:1;" onclick="downloadFile('en.srt')">SRT</button><button class="btn btn-accent" style="font-size:0.8rem;flex:1;" onclick="downloadFile('segments.json')">JSON</button></div></div>
+                        <div class="download-card"><span class="icon">📄</span><span class="label">Feliratok / Adatok</span><div class="download-card-actions"><button class="btn btn-secondary" onclick="downloadFile('dubbed.vtt')">VTT</button><button class="btn btn-secondary" onclick="downloadFile('en.srt')">SRT</button><button class="btn btn-accent" onclick="downloadFile('segments.json')">JSON</button></div></div>
                     </div>
                 </div>
             </section>
         </main>
     </div>
 
-    <script src="dedup.js"></script>
-    <script src="upload_queue.js?v=2"></script>
-    <script src="app.js?v=12"></script>
+    <script src="dedup.js?v=38521c9819"></script>
+    <script src="upload_queue.js?v=e5d8ea7fb0"></script>
+    <script src="app.js?v=0bcae8e726"></script>
     <script>
         // A banner rendert a shared.js adja; itt csak meghívjuk a saját
         // folyamat-kulcsunkkal. A data-process attribútum színezi be a

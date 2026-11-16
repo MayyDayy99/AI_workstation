@@ -1,35 +1,619 @@
+/* =========================================================================
+   EDTI Stúdió — design-tokenek (UI-1)
+   -------------------------------------------------------------------------
+   Miért: a felület 18 oldala külön-külön nőtt, 45 egyedi hex-szín, 5 töréspont
+   és kétféle betűtípus került bele. Egy vizuális változtatás így 10+ helyen
+   kellett, és a "melyik szürke az igazi" kérdésre nem volt válasz. Innentől
+   minden szín, térköz, sugár, árnyék és betűméret innen jön.
+
+   Rétegek:
+     1. primitívek  — nyers ramp-ek, közvetlenül SOHA ne használd komponensben
+     2. szemantika  — surface/text/border/state: ezt használd
+     3. skálák      — térköz, sugár, tipográfia, árnyék, mozgás, z-index
+     4. örökölt     — a régi változónevek a szemantikára mutatnak, hogy a még
+                      nem migrált oldalak változatlanul működjenek
+
+   Töréspontok (CSS-változó nem használható @media-ban, ezért itt a kanonikus
+   lista — máshol NE vezess be újat):
+       --bp-lg  1024px  — az oldalsáv keskenyedik, a tartalom padding szűkül
+       --bp-md   768px  — az oldalsávból felső csík lesz
+       --bp-sm   600px  — minden egyoszlopos
+   ========================================================================= */
+
 :root {
-    --bg-color: #0b0e14;
-    --sidebar-bg: #11141b;
-    --card-bg: rgba(30, 35, 45, 0.7);
-    --text-primary: #ffffff;
+    /* ── 1. PRIMITÍVEK ───────────────────────────────────────────────────── */
+    /* Semleges ramp — a felület minden szürkéje ebből a hat fokozatból jön. */
+    --n-950: #0b0e14;
+    --n-900: #11141b;
+    --n-850: #161a23;
+    --n-800: #1e232d;
+    --n-700: #2a303c;
+    --n-600: #3d4452;
+    --n-500: #6b7280;
+    --n-400: #9ca3af;
+    --n-300: #cbd5e1;
+    --n-100: #e5e7eb;
+    --n-0: #ffffff;
+
+    /* Márka-indigó + a hozzá tartozó ibolya (gradiensek második pontja). */
+    --indigo-300: #a5b4fc;
+    --indigo-400: #818cf8;
+    --indigo-500: #6366f1;
+    --indigo-600: #4f46e5;
+    --violet-400: #c084fc;
+    --violet-500: #a855f7;
+
+    /* Állapotszínek. A -300 a sötét háttéren olvasható szövegváltozat. */
+    --green-300: #6ee7b7;
+    --green-500: #10b981;
+    --amber-300: #fcd34d;
+    --amber-500: #f59e0b;
+    --red-300: #fca5a5;
+    --red-500: #ef4444;
+    --cyan-500: #06b6d4;
+
+    /* ── 2. SZEMANTIKA ───────────────────────────────────────────────────── */
+    /* ── Témafordító semlegesek ──────────────────────────────────────────
+       Ezek a felület fölé rétegzett, SZÍNTELEN aláfestések és fátylak. Sötét
+       témában világosak (fehér alfával), világosban sötétek (fekete alfával) —
+       ezért nem írhatók be nyers rgba()-ként a komponensekbe, különben a
+       világos témában kifehérednének. Egy helyen fordulnak át. */
+    --tint-1: rgba(255, 255, 255, 0.02);
+    --tint-2: rgba(255, 255, 255, 0.03);
+    --tint-3: rgba(255, 255, 255, 0.05);
+    --tint-4: rgba(255, 255, 255, 0.08);
+    /* Süllyesztett meder (haladássáv, kódblokk): a felületnél MÉLYEBB. */
+    --well: rgba(0, 0, 0, 0.3);
+    --well-soft: rgba(0, 0, 0, 0.2);
+    /* Modal-fátyol a lap fölött. */
+    --scrim: rgba(0, 0, 0, 0.7);
+    --scrim-strong: rgba(0, 0, 0, 0.78);
+    /* A lap háttér-gradiensének színes vége. */
+    --bg-glow: #1e1b4b;
+    /* Görgetősáv — a felületnél kontrasztosabb, de nem hangsúlyos. */
+    --scrollbar-thumb: var(--n-700);
+    --scrollbar-thumb-hover: var(--n-600);
+    /* Sakktábla a style guide átlátszó-minta mezőihez. */
+    --checker: var(--n-700);
+
+    /* Felületek — pontosan négy magassági szint, ne szaporítsd. */
+    --surface-page: var(--n-950);
+    --surface-raised: var(--n-900);
+    /* oldalsáv, táblázat-fejléc */
+    --surface-card: rgba(30, 35, 45, 0.7);
+    /* kártya (backdrop-blur-rel) */
+    --surface-sunken: #0f172a;
+    /* input, well, progress-sáv medre */
+    --surface-hover: rgba(255, 255, 255, 0.05);
+    --surface-hover-strong: rgba(255, 255, 255, 0.09);
+    --surface-subtle: rgba(255, 255, 255, 0.03);
+
+    /* Szöveg — négy fokozat, a -faint már csak dekoráció. */
+    --text-primary: var(--n-0);
     --text-secondary: #94a3b8;
-    --accent-color: #6366f1;
-    /* Modern Indigo */
-    --accent-hover: #4f46e5;
+    --text-muted: var(--n-500);
+    /* Nem #555c68: a felületeken csak 2.73:1 volt, és ez a szín monitor-
+       címkéket és szekció-feliratokat fest, nem dekorációt. */
+    --text-faint: #717d8e;
+    --text-on-accent: var(--n-0);
+
+    /* Keretek */
+    --border-subtle: rgba(255, 255, 255, 0.06);
     --border-color: rgba(255, 255, 255, 0.1);
-    --input-bg: #0f172a;
-    --danger: #ef4444;
-    --success: #10b981;
+    --border-strong: rgba(255, 255, 255, 0.2);
+    --border-accent: var(--indigo-500);
+
+    /* Akcentus */
+    --accent-color: var(--indigo-500);
+    --accent-hover: var(--indigo-600);
+    --accent-text: var(--indigo-300);
+    --accent-soft: rgba(99, 102, 241, 0.15);
+    --accent-soft-hover: rgba(99, 102, 241, 0.22);
+    --accent-gradient: linear-gradient(135deg, var(--indigo-500) 0%, var(--violet-500) 100%);
+    --brand-gradient: linear-gradient(to right, var(--indigo-400), var(--violet-400));
+
+    /* Állapotok: alap / halvány háttér / olvasható szöveg — mindhárom kell,
+       mert a pill-ek háttérrel, a szövegek színnel jeleznek. */
+    --success: var(--green-500);
+    --success-soft: rgba(16, 185, 129, 0.18);
+    --success-text: var(--green-300);
+    --warning: var(--amber-500);
+    --warning-soft: rgba(245, 158, 11, 0.18);
+    --warning-text: var(--amber-300);
+    --danger: var(--red-500);
+    --danger-soft: rgba(239, 68, 68, 0.18);
+    --danger-text: var(--red-300);
+    --neutral-soft: rgba(156, 163, 175, 0.18);
+    --neutral-text: var(--n-400);
+
+    /* Folyamat-színek. Minden folyamat ugyanúgy néz ki, csak az akcentus más —
+       ennyi vizuális jel kell ahhoz, hogy tudd, melyik eszközben vagy, anélkül,
+       hogy a felület valóban különbözne. */
+    --process-dub: var(--indigo-500);
+    --process-dub-bg: rgba(99, 102, 241, 0.15);
+    --process-subtitle: var(--cyan-500);
+    --process-subtitle-bg: rgba(6, 182, 212, 0.15);
+    --process-transcribe: var(--green-500);
+    --process-transcribe-bg: rgba(16, 185, 129, 0.15);
+    --process-intro-outro: var(--amber-500);
+    --process-intro-outro-bg: rgba(245, 158, 11, 0.15);
+    --process-ppt: var(--violet-500);
+    --process-ppt-bg: rgba(168, 85, 247, 0.15);
+    --process-course: #ec4899;
+    --process-course-bg: rgba(236, 72, 153, 0.15);
+    --process-ppt-narrate: #7c3aed;
+    --process-ppt-narrate-bg: rgba(124, 58, 237, 0.15);
+    /* Fájlkonvertáló (CONV-1): segédeszköz, nem feldolgozó folyamat — a
+       többitől jól elváló lime. */
+    --process-convert: #84cc16;
+    --process-convert-bg: rgba(132, 204, 22, 0.15);
+
+    /* A folyamat OLVASHATÓ szövegváltozata ("ink"): sötét témában a szín
+       világos árnyalata, világosban a sötét. Külön token, mert a --process-*
+       maga kitöltésre/keretre való — szövegként az egyik vagy másik témában
+       mindig alulmaradna. Használja a fejléc-csík ÉS a hub csempéje is. */
+    --process-dub-ink: #c7d2fe;
+    --process-subtitle-ink: #a5f3fc;
+    --process-transcribe-ink: #a7f3d0;
+    --process-intro-outro-ink: #fde68a;
+    --process-ppt-ink: #e9d5ff;
+    --process-course-ink: #fbcfe8;
+    --process-ppt-narrate-ink: #ddd6fe;
+    --process-convert-ink: #d9f99d;
+
+    /* ── 3. SKÁLÁK ───────────────────────────────────────────────────────── */
+    /* Térköz — 4px-es rács. A felületen korábban 2,4,5,6,8,10,12,14,15,16,18,
+       20,24,30,32,40px keveredett; ez a kilenc fokozat váltja ki. */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.25rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-10: 2.5rem;
+    --space-12: 3rem;
+
+    /* Sarok-sugár */
+    --radius-xs: 4px;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+    --radius-pill: 999px;
+
+    /* Tipográfia. Az Outfit a megjelenítő betű (címek, márkanév), az Inter a
+       felületé — eddig oldaltól függött, melyik töltődik be egyáltalán. */
+    --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-display: 'Outfit', 'Inter', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace;
+
+    --fs-3xs: 0.68rem;
+    --fs-2xs: 0.72rem;
+    --fs-xs: 0.78rem;
+    --fs-sm: 0.85rem;
+    --fs-md: 0.9rem;
+    --fs-lg: 0.95rem;
+    --fs-xl: 1.1rem;
+    --fs-2xl: 1.4rem;
+    --fs-3xl: 1.75rem;
+    --fs-4xl: 2.25rem;
+
+    --fw-normal: 400;
+    --fw-medium: 500;
+    --fw-semibold: 600;
+    --fw-bold: 700;
+    --fw-black: 800;
+
+    --lh-tight: 1.25;
+    --lh-normal: 1.5;
+    --lh-relaxed: 1.65;
+
+    --ls-tight: -0.02em;
+    --ls-wide: 0.05em;
+    --ls-wider: 0.1em;
+
+    /* Árnyék — az -accent a fókusz/akcentus-glow, nem általános mélység. */
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.18);
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
+    --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.28);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.35);
+    --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.5);
+    --shadow-accent: 0 4px 16px rgba(99, 102, 241, 0.32);
+    --shadow-accent-lg: 0 8px 26px rgba(99, 102, 241, 0.42);
+
+    /* Mozgás */
+    --ease: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+    --dur-fast: 120ms;
+    --dur: 200ms;
+    --dur-slow: 340ms;
+
+    /* Rétegsorrend — eddig 10 / 1000 / 9999 / 10000 szórványosan. */
+    --z-sticky: 10;
+    --z-banner: 100;
+    --z-dragging: 1000;
+    --z-modal: 9000;
+    --z-toast: 9500;
+
+    /* Fókuszgyűrű. Egyetlen forrás; minden interaktív elem ezt kapja. */
+    --focus-ring: 0 0 0 3px rgba(99, 102, 241, 0.5);
+    --focus-ring-danger: 0 0 0 3px rgba(239, 68, 68, 0.45);
+
+    /* ── 4. ÖRÖKÖLT NEVEK ────────────────────────────────────────────────── */
+    /* A még nem migrált oldalak/JS ezeket használják. Ne bővítsd a listát —
+       új kódban a fenti szemantikus neveket írd. */
+    --bg-color: var(--surface-page);
+    --sidebar-bg: var(--surface-raised);
+    --card-bg: var(--surface-card);
+    --input-bg: var(--surface-sunken);
     --glass-bg: rgba(15, 23, 42, 0.8);
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+    /* Ezt a négyet 13 helyen HASZNÁLTA a jelölő (pl. az intro_outro szöveg-
+       mezője: `border: 1px solid var(--border); background: var(--bg-dark)`),
+       de sehol nem volt definiálva — a deklarációk csendben eldobódtak, a
+       mező keret és háttér nélkül maradt. */
+    --border: var(--border-color);
+    --bg-dark: var(--surface-sunken);
+    --bg-card: var(--surface-card);
+    --text: var(--text-primary);
+    --accent: var(--accent-color);
 }
 
-* {
+/* =========================================================================
+   Téma-váltó gomb
+   -------------------------------------------------------------------------
+   A shared.js teszi ki minden lapra. Lebegő, sarokba húzódó gomb: nincs közös
+   fejléc-komponens, amibe be lehetne illeszteni, és 19 lap jelölőjét kézzel
+   bővíteni pont az a duplikáció lenne, ami ellen ez az egész munka szól.
+   ========================================================================= */
+.theme-toggle {
+    position: fixed;
+    right: var(--space-4);
+    bottom: var(--space-4);
+    z-index: var(--z-banner);
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--fs-xl);
+    line-height: 1;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-md);
+    cursor: pointer;
+    transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+
+.theme-toggle:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-strong);
+}
+
+/* A Flow Builder kanvasán a jobb alsó sarokban a zoom-vezérlők ülnek —
+   a váltó feljebb csúszik, hogy ne takarja őket. */
+.flow-app ~ .theme-toggle,
+body:has(.flow-app) .theme-toggle {
+    bottom: calc(var(--space-4) + 56px);
+}
+
+@media (max-width: 600px) {
+    .theme-toggle {
+        width: 36px;
+        height: 36px;
+        font-size: var(--fs-md);
+    }
+}
+
+/* =========================================================================
+   VILÁGOS TÉMA
+   -------------------------------------------------------------------------
+   A sötét az alap (fent, a :root-ban). Itt CSAK a szemantikus tokenek
+   fordulnak át — komponens-szabály egyetlen egy sincs ebben a blokkban, és ez
+   a lényeg: ha egy komponens helyesen tokenből dolgozik, magától átfordul.
+   Ha valami nem néz ki jól világosban, az a komponens hibája (nyers színt
+   használ), nem ezé a blokké.
+
+   A váltást a <html data-theme="light"> attribútum végzi, amit a shared.js
+   állít be: előbb a localStorage-ból, annak hiányában a rendszer
+   beállításából (prefers-color-scheme). Azért JS és nem @media, mert így a
+   szabályt EGYSZER kell leírni — a media-query + attribútum kettőse
+   duplikálná az egész palettát, és pont az ilyen duplikáció ellen szól ez az
+   egész munka.
+
+   A PRIMITÍVEK (--n-*, --indigo-* …) NEM fordulnak: azok nyers ramp-ek, a
+   nevük a színt jelenti, nem a szerepet. Minden komponens szemantikus
+   tokenen keresztül éri el őket.
+   ========================================================================= */
+:root[data-theme="light"] {
+    /* Felületek. A lap a leghalványabb, a kártya a legvilágosabb — sötét
+       témában fordítva volt, és pont ezért kell szemantikus név. */
+    --surface-page: #f5f7fa;
+    --surface-raised: #ffffff;
+    --surface-card: rgba(255, 255, 255, 0.92);
+    --surface-sunken: #eceff4;
+    --surface-hover: rgba(15, 23, 42, 0.05);
+    --surface-hover-strong: rgba(15, 23, 42, 0.09);
+    --surface-subtle: rgba(15, 23, 42, 0.03);
+
+    /* Szöveg */
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #5b6b7f;
+    /* Nem #94a3b8: fehéren csak 2.56:1, és ez a szín monitor-címkéket és
+       szekció-feliratokat fest, nem dekorációt. */
+    --text-faint: #6b7889;
+    --text-on-accent: #ffffff;
+
+    /* Keretek — világos háton sötét alfával, nem fehérrel. */
+    --border-subtle: rgba(15, 23, 42, 0.07);
+    --border-color: rgba(15, 23, 42, 0.13);
+    --border-strong: rgba(15, 23, 42, 0.26);
+
+    /* Akcentus. A maga a márka-indigó marad; ami fordul, az a SZÖVEG-
+       változata: világos háton a -300 olvashatatlan, a -600 kell. */
+    --accent-text: var(--indigo-600);
+    --accent-soft: rgba(99, 102, 241, 0.12);
+    --accent-soft-hover: rgba(99, 102, 241, 0.2);
+
+    /* Állapotok: az alapszín marad, a halvány háttér és az olvasható
+       szövegváltozat fordul (a -300-as árnyalatok fehéren eltűnnének). */
+    --success-soft: rgba(16, 185, 129, 0.14);
+    --success-text: #047857;
+    --warning-soft: rgba(245, 158, 11, 0.16);
+    --warning-text: #b45309;
+    --danger-soft: rgba(239, 68, 68, 0.12);
+    --danger-text: #b91c1c;
+    --neutral-soft: rgba(100, 116, 139, 0.14);
+    --neutral-text: #475569;
+
+    /* Folyamat-színek: a halvány hátterek erősödnek, hogy fehéren is
+       látszódjanak; maguk a színek változatlanok. */
+    --process-dub-bg: rgba(99, 102, 241, 0.14);
+    --process-subtitle-bg: rgba(6, 182, 212, 0.16);
+    --process-transcribe-bg: rgba(16, 185, 129, 0.16);
+    --process-intro-outro-bg: rgba(245, 158, 11, 0.18);
+    --process-ppt-bg: rgba(168, 85, 247, 0.14);
+    --process-course-bg: rgba(236, 72, 153, 0.14);
+    --process-ppt-narrate-bg: rgba(124, 58, 237, 0.14);
+    --process-convert-bg: rgba(132, 204, 22, 0.18);
+
+    /* Témafordító semlegesek: fehér alfa helyett fekete. */
+    --tint-1: rgba(15, 23, 42, 0.02);
+    --tint-2: rgba(15, 23, 42, 0.035);
+    --tint-3: rgba(15, 23, 42, 0.05);
+    --tint-4: rgba(15, 23, 42, 0.08);
+    --well: rgba(15, 23, 42, 0.07);
+    --well-soft: rgba(15, 23, 42, 0.04);
+    --scrim: rgba(15, 23, 42, 0.45);
+    --scrim-strong: rgba(15, 23, 42, 0.55);
+    --bg-glow: #dfe4f7;
+
+    --scrollbar-thumb: rgba(15, 23, 42, 0.22);
+    --scrollbar-thumb-hover: rgba(15, 23, 42, 0.34);
+    --checker: rgba(15, 23, 42, 0.14);
+
+    /* Árnyékok: világos háton a sötét témáé koromfoltnak látszana. */
+    --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+    --shadow-sm: 0 2px 6px rgba(15, 23, 42, 0.06);
+    --shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+    --shadow-md: 0 8px 20px rgba(15, 23, 42, 0.1);
+    --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.12);
+    --shadow-xl: 0 24px 64px rgba(15, 23, 42, 0.18);
+    --shadow-accent: 0 4px 16px rgba(99, 102, 241, 0.28);
+    --shadow-accent-lg: 0 8px 26px rgba(99, 102, 241, 0.36);
+
+    --glass-bg: rgba(255, 255, 255, 0.85);
+
+    /* A fejléc-csík szövege világos háton a folyamat SÖTÉT árnyalata. */
+    --process-dub-ink: #3730a3;
+    --process-subtitle-ink: #0e7490;
+    --process-transcribe-ink: #047857;
+    --process-intro-outro-ink: #b45309;
+    --process-ppt-ink: #7e22ce;
+    --process-course-ink: #be185d;
+    --process-ppt-narrate-ink: #5b21b6;
+    --process-convert-ink: #3f6212;
+    --focus-ring: 0 0 0 3px rgba(99, 102, 241, 0.35);
+    --focus-ring-danger: 0 0 0 3px rgba(239, 68, 68, 0.3);
+}
+
+/* A lap háttere is fordul: a sötét radiális gradiens helyett halvány derengés. */
+:root[data-theme="light"] body {
+    background: radial-gradient(circle at top right, var(--bg-glow), var(--surface-page) 42%);
+}
+
+/* A márkanév gradiense világos háton túl halvány lenne. */
+:root[data-theme="light"] .brand h1,
+:root[data-theme="light"] .hub-header h1,
+:root[data-theme="light"] .login-logo h1 {
+    background: linear-gradient(to right, var(--indigo-600), #9333ea);
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+
+/* =========================================================================
+   Reset + alapréteg
+   ========================================================================= */
+*,
+*::before,
+*::after {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
 }
 
+/* A háttér a <html>-en is ott van, nem csak a <body>-n: hosszú, görgethető
+   lapon (hub, style guide) a body háttere `background-attachment: fixed`, így
+   a viewporton túli sáv a canvas alapszínét — fehéret — kapta. Túlgörgetésnél
+   (macOS/iOS rubber band) ugyanez villant be. */
+html {
+    -webkit-text-size-adjust: 100%;
+    background: var(--surface-page);
+}
+
 body {
-    font-family: 'Outfit', 'Inter', sans-serif;
-    background: radial-gradient(circle at top right, #1e1b4b, #0b0e14 40%);
+    font-family: var(--font-sans);
+    font-size: var(--fs-md);
+    line-height: var(--lh-normal);
+    background: radial-gradient(circle at top right, var(--bg-glow), var(--surface-page) 40%);
     background-attachment: fixed;
     color: var(--text-primary);
     height: 100vh;
     overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Fókusz: egérrel kattintva nem villan fel, billentyűzettel mindig látszik.
+   Eddig NEM volt fókuszjelzés sehol — Tab-bal navigálva a felület vak volt. */
+:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+    border-radius: var(--radius-xs);
+}
+
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: var(--focus-ring);
+}
+
+::selection {
+    background: var(--accent-soft-hover);
+    color: var(--text-primary);
+}
+
+/* Görgetősáv — a natív világos sáv sötét felületen kilóg. */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: var(--radius-pill);
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: var(--border-strong);
+    background-clip: content-box;
+}
+
+/* =========================================================================
+   Űrlapvezérlők — globálisan
+   -------------------------------------------------------------------------
+   Eddig csak az `.advanced-settings .field-row` alatti select/input kapott
+   stílust; a maradék ~40 vezérlő 18 oldalon natív, világos widgetként ült a
+   sötét kártyán. Innentől minden select/input/textarea egységes.
+   ========================================================================= */
+input[type="text"],
+input[type="number"],
+input[type="password"],
+input[type="email"],
+input[type="search"],
+input[type="url"],
+input[type="date"],
+input[type="time"],
+select,
+textarea {
+    font-family: inherit;
+    font-size: var(--fs-md);
+    line-height: var(--lh-normal);
+    color: var(--text-primary);
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+    transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), background var(--dur) var(--ease);
+    max-width: 100%;
+}
+
+input[type="text"]:hover:not(:disabled),
+input[type="number"]:hover:not(:disabled),
+input[type="password"]:hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+    border-color: var(--border-strong);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+::placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+}
+
+/* A natív nyíl sötét témán kiszámíthatatlan (platformfüggően világos marad),
+   ezért saját, SVG-mentes nyilat rajzolunk gradiensből. */
+select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: var(--space-8);
+    background-image:
+        linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%),
+        linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%);
+    background-position:
+        calc(100% - 16px) calc(50% + 2px),
+        calc(100% - 11px) calc(50% + 2px);
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    cursor: pointer;
+}
+
+/* A legördülő lista tételei külön öröklődnek (Windows/Chrome). */
+select option {
+    background: var(--surface-raised);
+    color: var(--text-primary);
+}
+
+textarea {
+    resize: vertical;
+    min-height: 68px;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+    accent-color: var(--accent-color);
+}
+
+input[type="range"] {
+    accent-color: var(--accent-color);
+}
+
+label {
+    font-size: var(--fs-md);
+    color: var(--text-secondary);
 }
 
 .app-container {
@@ -40,53 +624,110 @@ body {
 /* Sidebar */
 .sidebar {
     width: 300px;
-    background-color: var(--sidebar-bg);
+    flex-shrink: 0;
+    background-color: var(--surface-raised);
     border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
-    padding: 30px 20px;
+    padding: var(--space-8) var(--space-5);
     backdrop-filter: blur(10px);
 }
 
 .brand h1 {
-    font-size: 1.5rem;
-    font-weight: 800;
-    margin-bottom: 2.5rem;
-    background: linear-gradient(to right, #818cf8, #c084fc);
+    font-family: var(--font-display);
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-black);
+    margin-bottom: var(--space-6);
+    background: var(--brand-gradient);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    letter-spacing: -1px;
+    letter-spacing: var(--ls-tight);
+}
+
+/* A márkanév link is; gradiens-szöveghez a fókuszgyűrű a linkre kell. */
+.brand a {
+    text-decoration: none;
+    display: inline-block;
+    border-radius: var(--radius-sm);
+}
+
+/* A márkanév alatti bejelentkezett-felhasználó kijelző. */
+.brand-user {
+    font-size: var(--fs-xs);
+    color: var(--text-faint);
+    margin-top: var(--space-1);
+}
+
+/* Az oldalsáv navigációs blokkja. Eddig minden oldal saját
+   `style="padding:0 1rem; margin-bottom:.5rem"` div-ekkel rakta ki. */
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-5);
+}
+
+.sidebar-section-label {
+    font-size: var(--fs-3xs);
+    text-transform: uppercase;
+    letter-spacing: var(--ls-wider);
+    color: var(--text-faint);
+    font-weight: var(--fw-bold);
+    margin-bottom: var(--space-2);
 }
 
 .history-list {
     flex: 1;
     overflow-y: auto;
-    padding-right: 5px;
+    padding-right: var(--space-1);
+    min-height: 0;
+}
+
+/* Használva 9 oldalon, definiálva sehol: az "Nincs korábbi feladat" szöveg
+   eddig stílus nélküli, alap-fehér bekezdésként ült az oldalsávban. */
+.empty-history {
+    padding: var(--space-6) var(--space-3);
+    text-align: center;
+    font-size: var(--fs-xs);
+    color: var(--text-faint);
+    border: 1px dashed var(--border-subtle);
+    border-radius: var(--radius-md);
+}
+
+/* Ugyanaz a doboz, ha nem üres a lista, hanem elszállt a lekérdezés. */
+.empty-history.is-error {
+    color: var(--danger-text);
+    border-color: var(--danger-soft);
 }
 
 .job-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 15px;
-    background: rgba(255, 255, 255, 0.03);
+    padding: var(--space-3);
+    background: var(--surface-subtle);
     border: 1px solid transparent;
     cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    border-radius: 12px;
-    margin-bottom: 12px;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-2);
 }
 
 .job-item:hover {
-    background: rgba(255, 255, 255, 0.08);
-    transform: translateX(4px);
+    background: var(--surface-hover-strong);
+    transform: translateX(3px);
     border-color: var(--border-color);
 }
 
+.job-item:focus-visible {
+    box-shadow: var(--focus-ring);
+    border-color: var(--accent-color);
+}
+
 .job-item.active {
-    background: rgba(99, 102, 241, 0.15);
-    border: 1px solid var(--accent-color);
+    background: var(--accent-soft);
+    border-color: var(--accent-color);
     box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
 }
 
@@ -104,8 +745,8 @@ body {
     display: flex;
     align-items: stretch;
     gap: 1rem;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--tint-2);
+    border: 1px solid var(--tint-4);
     border-left: 4px solid rgba(156, 163, 175, 0.6);
     border-radius: 10px;
     padding: 14px 18px;
@@ -120,18 +761,44 @@ body {
 }
 
 /* Státusz-alapú bal sáv: azonnal látható egy pillantásból, hogy egy
-   feladat fut, várakozik, kész, hibás vagy megszakadt. */
-.batch-item.status-queued {
-    border-left-color: #9ca3af;
+   feladat fut, várakozik, kész, hibás vagy megszakadt.
+
+   A lista MINDEN állapotot ismer, amit a JS ad. Korábban csak hat volt itt
+   (queued/running/done/error/cancelled/interrupted), ezért a többi — a
+   ppt-narrate munkafázisai, a done_with_errors, az uploaded — jelöletlen
+   szürke maradt. Három batch oldal ezt úgy kerülte meg, hogy SAJÁT
+   `.batch-item` szabályt hozott, más értékekkel (3px csík 4 helyett, más
+   háttér), így a lista laponként másképp nézett ki. Azok az override-ok
+   ezzel megszűnhettek. */
+.batch-item.status-queued,
+.batch-item.status-skipped {
+    border-left-color: var(--text-secondary);
 }
 
-.batch-item.status-running {
+/* Minden futó munkafázis ugyanaz a jelzés — a felhasználónak az számít, hogy
+   ÉPP DOLGOZIK, a fázis neve a sor szövegében amúgy is ott van. */
+.batch-item.status-running,
+.batch-item.status-processing,
+.batch-item.status-narrating,
+.batch-item.status-rendering_slides,
+.batch-item.status-extracting_notes,
+.batch-item.status-composing {
     border-left-color: var(--process-dub);
     background: rgba(99, 102, 241, 0.06);
 }
 
+/* Feltöltve, de még nem indult el. */
+.batch-item.status-uploaded {
+    border-left-color: var(--warning);
+}
+
 .batch-item.status-done {
-    border-left-color: #10b981;
+    border-left-color: var(--success);
+}
+
+/* Lefutott, de volt benne hiba — nem zöld, mert átnézést igényel. */
+.batch-item.status-done_with_errors {
+    border-left-color: var(--warning);
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -173,21 +840,47 @@ body {
         transition: none !important;
         transform: none !important;
     }
+
+    /* Eddig csak a listaelemekre vonatkozott, miközben a kártyák fade-in-je,
+       a gombok emelkedése, a toast becsúszása és a haladássáv-animáció
+       ugyanúgy mozgott. A pörgő töltésjelző kivétel: ott a mozgás maga az
+       információ, csak lelassítjuk. */
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .spinner,
+    .spin,
+    .spin-anim {
+        animation-duration: 1.6s !important;
+        animation-iteration-count: infinite !important;
+    }
+
+    .btn:hover:not(:disabled),
+    .tool-card:hover,
+    .card:hover {
+        transform: none !important;
+    }
 }
 
 .batch-item.status-error {
-    border-left-color: #ef4444;
+    border-left-color: var(--danger);
     background: rgba(239, 68, 68, 0.05);
 }
 
 .batch-item.status-canceled,
 .batch-item.status-cancelled {
-    border-left-color: #6b7280;
+    border-left-color: var(--text-muted);
     opacity: 0.72;
 }
 
 .batch-item.status-interrupted {
-    border-left-color: #f59e0b;
+    border-left-color: var(--warning);
 }
 
 .batch-item .batch-info {
@@ -199,13 +892,13 @@ body {
     margin: 0 0 6px;
     font-size: 0.95rem;
     font-weight: 600;
-    color: #e5e7eb;
+    color: var(--text-primary);
     word-break: break-word;
 }
 
 .batch-item .batch-meta {
     font-size: 0.78rem;
-    color: #9ca3af;
+    color: var(--text-secondary);
     margin-bottom: 6px;
 }
 
@@ -214,6 +907,9 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Mind a 8 előfordulás ugyanazt a két inline deklarációt hordozta. */
+    margin-left: var(--space-4);
+    font-size: 1.5rem;
 }
 
 .job-item.downloaded,
@@ -269,29 +965,45 @@ body {
 /* Main Content */
 .main-content {
     flex: 1;
-    padding: 40px;
+    padding: var(--space-10);
     overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--border-color) transparent;
 }
 
 .card {
-    background: var(--card-bg);
+    background: var(--surface-card);
     backdrop-filter: blur(12px);
     border: 1px solid var(--border-color);
-    border-radius: 20px;
-    padding: 32px;
-    margin-bottom: 32px;
+    border-radius: var(--radius-xl);
+    padding: var(--space-8);
+    margin-bottom: var(--space-8);
     box-shadow: var(--shadow-lg);
-    transition: all 0.4s ease;
+    /* `all` helyett névre szólóan: a `transition: all` a kártyán belüli
+       layout-változásokat (magasság, pozíció) is animálta, ettől "úszott" a
+       felület job-frissítéskor. */
+    transition: border-color var(--dur-slow) var(--ease), box-shadow var(--dur-slow) var(--ease);
 }
 
 .card:hover {
-    border-color: rgba(255, 255, 255, 0.2);
+    border-color: var(--border-strong);
+}
+
+/* Szekció-fejléc a kártyán belül: cím + jobbra igazított akciók. Eddig minden
+   oldal a saját inline flex-ét vitte ugyanerre. */
+.card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-6);
+}
+
+.card-header h2 {
+    margin-bottom: 0;
 }
 
 .fade-in {
-    animation: fadeIn 0.5s ease-out;
+    animation: fadeIn var(--dur-slow) var(--ease) both;
 }
 
 @keyframes fadeIn {
@@ -306,22 +1018,164 @@ body {
     }
 }
 
+h1,
+h2,
+h3,
+h4 {
+    font-family: var(--font-display);
+    line-height: var(--lh-tight);
+}
+
 h2 {
-    font-size: 1.1rem;
-    margin-bottom: 16px;
-    font-weight: 600;
+    font-size: var(--fs-xl);
+    margin-bottom: var(--space-4);
+    font-weight: var(--fw-semibold);
+    letter-spacing: var(--ls-tight);
 }
 
 h3 {
-    font-size: 0.95rem;
-    margin-bottom: 8px;
+    font-size: var(--fs-lg);
+    margin-bottom: var(--space-2);
+    font-weight: var(--fw-semibold);
     color: var(--text-secondary);
+}
+
+h4 {
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
 }
 
 p {
     color: var(--text-secondary);
-    font-size: 0.9rem;
-    line-height: 1.5;
+    font-size: var(--fs-md);
+    line-height: var(--lh-normal);
+}
+
+/* Alapszín a linkeknek. Eddig NEM volt globális `a` szabály, így egy
+   osztály nélküli link a böngésző alapértelmezett kékjére esett
+   (#0000ee) — sötét témában 1,96:1, és a rendszer palettájából is kilóg.
+   Ma egyetlen ilyen link sincs, amin ez LÁTSZANA (a 13 lap márkaneve
+   osztály nélküli `<a>`, de csak a gradienses <h1>-et burkolja, saját
+   szövege nincs), tehát ez megelőzés: a következő osztály nélküli link ne
+   UA-kéken szülessen.
+
+   CSAK a szín. Szándékosan NINCS globális `a:hover` szín: az (0,1,1)
+   fajsúllyal ütné a `.btn-nav`-ot (0,1,0), és elvinné az összes
+   gomb-link hover-színét. Az aláhúzás is marad a böngészőre — ami
+   aláhúzás nélkül kell (`.btn`, `.brand a`, `.hub-footer a`), az már
+   most kiírja magának. */
+a {
+    color: var(--accent-text);
+}
+
+/* Segédosztályok — hogy az oldalankénti inline style="font-size:0.8rem;
+   color:var(--text-faint)" mintázatot legyen mivel kiváltani. */
+.text-muted {
+    color: var(--text-muted);
+}
+
+.text-faint {
+    color: var(--text-faint);
+}
+
+.text-success {
+    color: var(--success-text);
+}
+
+.text-warning {
+    color: var(--warning-text);
+}
+
+.text-danger {
+    color: var(--danger-text);
+}
+
+.text-secondary {
+    color: var(--text-secondary);
+}
+
+.text-accent {
+    color: var(--accent-text);
+}
+
+.text-center {
+    text-align: center;
+}
+
+.text-sm {
+    font-size: var(--fs-sm);
+}
+
+.text-xs {
+    font-size: var(--fs-xs);
+}
+
+.text-2xs {
+    font-size: var(--fs-2xs);
+}
+
+.text-lg {
+    font-size: var(--fs-lg);
+}
+
+.nowrap {
+    white-space: nowrap;
+}
+
+/* Hosszú, szóköz nélküli szövegek (URL-ek, hibaüzenetek) tördelése. */
+.break-word {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+/* Térköz-segédosztályok a token-skálán. A jelölőben 57 inline stílus volt,
+   ami CSAK margin/padding-ot állított — ezek váltják ki. (UI-14) */
+.m-0 {
+    margin: 0;
+}
+
+.mt-0 {
+    margin-top: 0;
+}
+
+.mt-1 {
+    margin-top: var(--space-1);
+}
+
+.mb-4 {
+    margin-bottom: var(--space-4);
+}
+
+/* Rugalmas oszlop, ami egy olvasható minimum alá nem megy — a gombpár
+   szűk kártyán inkább tördelődjön, mint hogy összenyomódjon. */
+.grow-140 {
+    flex: 1;
+    min-width: 140px;
+}
+
+.font-medium {
+    font-weight: var(--fw-medium);
+}
+
+.font-semibold {
+    font-weight: var(--fw-semibold);
+}
+
+.stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.full-width {
+    width: 100%;
 }
 
 .btn-animate-click:active {
@@ -345,36 +1199,56 @@ p {
 /* Upload Area */
 .upload-area {
     border: 2px dashed var(--border-color);
-    border-radius: 8px;
-    padding: 30px;
+    border-radius: var(--radius-md);
+    padding: var(--space-8);
     text-align: center;
-    transition: border-color 0.2s, background 0.2s;
-    margin-bottom: 20px;
-    background: var(--input-bg);
+    transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+    margin-bottom: var(--space-5);
+    background: var(--surface-sunken);
 }
 
+/* A hover-háttér korábban `rgba(35,134,54,.05)` — ZÖLD — volt, egy régebbi,
+   GitHub-zöld témából ittmaradva, miközben a keret indigóra váltott. */
 .upload-area:hover,
 .upload-area.dragover {
     border-color: var(--accent-color);
-    background: rgba(35, 134, 54, 0.05);
+    background: var(--accent-soft);
+}
+
+.upload-area.dragover {
+    border-style: solid;
+    box-shadow: var(--shadow-accent);
 }
 
 .upload-area.small {
-    padding: 15px;
+    padding: var(--space-4);
     flex: 1;
 }
 
 .flex-row {
     display: flex;
-    gap: 20px;
+    gap: var(--space-5);
     align-items: flex-start;
 }
 
 .file-name {
     display: block;
-    margin-top: 10px;
-    font-size: 0.85rem;
-    color: var(--accent-color);
+    margin-top: var(--space-2);
+    font-size: var(--fs-sm);
+    color: var(--accent-text);
+    word-break: break-all;
+}
+
+.file-name:empty {
+    display: none;
+}
+
+/* Hangminta-blokk a szinkron/leirat lapon. Használtuk, de sosem definiáltuk —
+   emiatt csak egy jelöletlen szakasz volt a kártya közepén. */
+.voice-ref-area {
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--border-subtle);
 }
 
 /* Form Elements */
@@ -382,17 +1256,22 @@ p {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 15px;
-    padding-top: 10px;
+    gap: var(--space-4);
+    padding-top: var(--space-2);
 }
 
 .custom-checkbox {
     display: flex;
     align-items: center;
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     cursor: pointer;
     user-select: none;
     color: var(--text-secondary);
+    transition: color var(--dur) var(--ease);
+}
+
+.custom-checkbox:hover {
+    color: var(--text-primary);
 }
 
 .custom-checkbox input {
@@ -406,11 +1285,20 @@ p {
 .checkmark {
     height: 18px;
     width: 18px;
-    background-color: var(--input-bg);
+    flex-shrink: 0;
+    background-color: var(--surface-sunken);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
-    margin-right: 10px;
+    border-radius: var(--radius-xs);
+    margin-right: var(--space-2);
     position: relative;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+
+/* A valódi input vizuálisan rejtett, ezért a fókuszgyűrűt a rajzolt négyzet
+   kapja meg — enélkül a Tab-bal odaérkező felhasználó nem látott semmit. */
+.custom-checkbox input:focus-visible~.checkmark {
+    box-shadow: var(--focus-ring);
+    border-color: var(--accent-color);
 }
 
 .custom-checkbox:hover input~.checkmark {
@@ -443,78 +1331,265 @@ p {
     color: #ffd700;
 }
 
-/* Buttons */
+/* =========================================================================
+   Gombok
+   -------------------------------------------------------------------------
+   Egy alaposztály + variánsok. Minden gomb azonos magasságú (min-height),
+   így egy sorba téve nem lépcsőznek. A `.btn-danger` és `.btn-warning`
+   variánst 18 oldal használta anélkül, hogy létezett volna — ezért voltak
+   `style="background:#ef4444;color:white"` foltok a jelölőben.
+   ========================================================================= */
 .btn {
-    padding: 12px 24px;
-    border-radius: 12px;
-    border: none;
-    font-size: 0.95rem;
-    font-weight: 600;
+    padding: var(--space-3) var(--space-6);
+    min-height: 42px;
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    font-family: inherit;
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
+    line-height: 1.2;
     cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Alapszín, hogy a szín-variáns NÉLKÜLI gomb se essen vissza a böngésző
+       alapértelmezésére: az <a class="btn btn-sm"> UA-kék, a <button> UA-fekete
+       lenne. Minden szín-variáns később jön a lapon, így felülírja. (UI-7) */
+    color: var(--text-primary);
+    /* `all` helyett névre szólóan — a `width`/`flex` animálása a letöltő-
+       rácsban látható ugrásokat okozott. */
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease),
+        box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease), filter var(--dur) var(--ease);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: var(--space-2);
+    text-decoration: none;
+    white-space: nowrap;
 }
 
-.btn:disabled {
-    opacity: 0.4;
+.btn:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+/* Letiltva minden variáns ugyanazt a lapos, semleges felületet kapja: a puszta
+   opacitás átengedte a gradienst, így a kikapcsolt főgomb is kattinthatónak
+   látszott; a korábbi `filter: grayscale(1)` viszont a *tiltás* tényét nem
+   jelezte, csak a színt vette el. */
+.btn:disabled,
+.btn[aria-disabled="true"] {
+    background: var(--surface-hover) !important;
+    background-image: none !important;
+    color: var(--text-muted) !important;
+    border-color: var(--border-subtle) !important;
     cursor: not-allowed;
-    filter: grayscale(1);
+    box-shadow: none !important;
+    transform: none !important;
+    filter: none !important;
 }
 
+/* Méretvariánsok — eddig minden kisebb gomb inline font-size/padding volt. */
+.btn-sm {
+    padding: var(--space-2) var(--space-3);
+    min-height: 32px;
+    font-size: var(--fs-xs);
+    border-radius: var(--radius-sm);
+}
+
+/* Sor-szintű apró gomb (batch-listák akciói). A .btn-sm is túl nagy, ha
+   három letöltő gomb fér el egy sorban a fájlnév mellett. */
+.btn-xs {
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--fs-3xs);
+}
+
+.btn-block {
+    width: 100%;
+}
+
+/* Elsődleges: semleges, kiemelt felület. */
 .btn-primary {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface-hover);
     color: var(--text-primary);
-    border: 1px solid var(--border-color);
+    border-color: var(--border-color);
 }
 
 .btn-primary:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.3);
+    background: var(--surface-hover-strong);
+    border-color: var(--border-strong);
 }
 
+/* Akcentus: a lap fő cselekvése (indítás, letöltés). Laponként egy. */
 .btn-accent {
-    background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-    color: white;
-    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+    background: var(--accent-gradient);
+    color: var(--text-on-accent);
+    box-shadow: var(--shadow-accent);
 }
 
 .btn-accent:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
-    filter: brightness(1.1);
+    box-shadow: var(--shadow-accent-lg);
+    filter: brightness(1.08);
+}
+
+.btn-accent:active:not(:disabled) {
+    transform: translateY(0);
 }
 
 .btn-vibrant {
-    background: linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
-    color: white;
-    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
-    border: none !important;
+    background: linear-gradient(135deg, var(--indigo-500) 0%, var(--process-course) 100%);
+    color: var(--text-on-accent);
+    box-shadow: var(--shadow-accent);
 }
 
 .btn-vibrant:hover:not(:disabled) {
-    transform: translateY(-3px) scale(1.02);
-    box-shadow: 0 8px 25px rgba(99, 102, 241, 0.5);
-    filter: brightness(1.1);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-accent-lg);
+    filter: brightness(1.08);
 }
 
 .btn-secondary {
     background: transparent;
-    border: 1px solid var(--border-color);
+    border-color: var(--border-color);
     color: var(--text-primary);
 }
 
 .btn-secondary:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: var(--text-secondary);
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
+}
+
+/* Csendes gomb keret nélkül — sorok végi, mellékes akciókhoz. */
+.btn-ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--text-secondary);
+}
+
+.btn-ghost:hover:not(:disabled) {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+}
+
+.btn-danger {
+    background: var(--danger);
+    color: var(--text-on-accent);
+    border-color: transparent;
+}
+
+.btn-danger:hover:not(:disabled) {
+    filter: brightness(1.1);
+    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.35);
+}
+
+.btn-danger:focus-visible {
+    box-shadow: var(--focus-ring-danger);
+}
+
+.btn-warning {
+    background: var(--warning);
+    color: #1a1204;
+    border-color: transparent;
+}
+
+/* Visszafogott veszély: a felület marad semleges, csak a felirat és a
+   keret vált — a „Stop"/„Törlés" ne uralja a sort egy telt piros gombbal. */
+.btn-danger-quiet {
+    color: var(--danger-text);
+    border-color: var(--danger-text);
+}
+
+/* Ugyanaz a visszafogott minta a másik két hangnemre. */
+.btn-success-quiet {
+    color: var(--success-text);
+    border-color: var(--success);
+}
+
+.btn-warning-quiet {
+    color: var(--warning-text);
+    border-color: var(--warning);
+}
+
+.btn-warning:hover:not(:disabled) {
+    filter: brightness(1.08);
+    box-shadow: 0 4px 16px rgba(245, 158, 11, 0.35);
+}
+
+.btn-success {
+    background: var(--success);
+    color: #04140e;
+    border-color: transparent;
+}
+
+.btn-success:hover:not(:disabled) {
+    filter: brightness(1.08);
 }
 
 .actions {
-    margin-top: 32px;
+    margin-top: var(--space-8);
     display: flex;
     justify-content: flex-end;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+/* =========================================================================
+   Töltés-jelzők és letöltés-jelölés
+   -------------------------------------------------------------------------
+   Mind a négy osztályt használta a jelölő, de egyik sem volt definiálva; a
+   `.spinner` a saját inline stílusát vitte minden előfordulásnál.
+   ========================================================================= */
+.spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--border-strong);
+    border-top-color: var(--accent-color);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+}
+
+.spin {
+    display: inline-block;
+    animation: spin 1s linear infinite;
+}
+
+/* "Letöltve" jelölés a batch-listákban. */
+.saved-mark {
+    color: var(--success-text);
+    font-size: var(--fs-md);
+    flex-shrink: 0;
+}
+
+.saved-label {
+    color: var(--success-text);
+    font-size: var(--fs-xs);
+    margin-top: var(--space-1);
+}
+
+/* =========================================================================
+   Címkézett űrlapmező
+   ========================================================================= */
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.input-group label {
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    color: var(--text-secondary);
+}
+
+.settings-input {
+    width: 100%;
+    font-family: inherit;
+    font-size: var(--fs-md);
+    color: var(--text-primary);
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
 }
 
 /* Progress */
@@ -522,44 +1597,112 @@ p {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 24px;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-6);
 }
 
 .badge {
-    background: rgba(99, 102, 241, 0.2);
-    color: #a5b4fc;
-    padding: 6px 14px;
-    border-radius: 100px;
-    font-size: 0.75rem;
-    font-weight: 700;
+    background: var(--accent-soft-hover);
+    color: var(--accent-text);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-pill);
+    font-size: var(--fs-2xs);
+    font-weight: var(--fw-bold);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: var(--ls-wide);
     border: 1px solid rgba(99, 102, 241, 0.3);
+    white-space: nowrap;
+}
+
+.badge-success {
+    background: var(--success-soft);
+    color: var(--success-text);
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.badge-warning {
+    background: var(--warning-soft);
+    color: var(--warning-text);
+    border-color: rgba(245, 158, 11, 0.3);
+}
+
+.badge-danger {
+    background: var(--danger-soft);
+    color: var(--danger-text);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.badge-neutral {
+    background: var(--neutral-soft);
+    color: var(--neutral-text);
+    border-color: var(--border-color);
+}
+
+/* Halk jelvény: a .badge nagybetűs, bold pill — a batch-sorban a fájlnév
+   maradjon a hangsúlyos, a tulajdonos/„csak nézés" címke csak kísérje. */
+.badge-soft {
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: var(--fw-normal);
+    font-size: var(--fs-3xs);
+    border-radius: var(--radius-xs);
+    padding: 2px var(--space-2);
+}
+
+/* Folyamat-színű jelvény. A hármast a lap állítja be egy helyen
+   (--batch-accent-*), ugyanaz, ami a haladássávot és a státuszsort is
+   színezi — így egy lapon egyetlen helyen dől el a folyamat színe. */
+.badge-process {
+    background: var(--batch-accent-bg, var(--accent-soft));
+    color: var(--batch-accent-ink, var(--accent-text));
+    border-color: var(--batch-accent-border, rgba(99, 102, 241, 0.3));
 }
 
 .progress-bar-container {
-    height: 12px;
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 100px;
+    height: 10px;
+    background: var(--well);
+    border-radius: var(--radius-pill);
     overflow: hidden;
-    margin-bottom: 15px;
+    margin-bottom: var(--space-4);
     border: 1px solid var(--border-color);
 }
 
 .progress-bar {
     height: 100%;
-    background: linear-gradient(90deg, #6366f1, #a855f7);
+    /* Kezdőérték: a JS futásidőben írja felül. Eddig 41 helyen
+       `style="width:0%"`-ként utazott a jelölőben. (UI-14) */
+    width: 0;
+    background: linear-gradient(90deg, var(--indigo-500), var(--violet-500));
     box-shadow: 0 0 15px rgba(99, 102, 241, 0.5);
-    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: width 0.6s var(--ease);
+}
+
+/* Meghatározatlan hosszúságú szakasz (feltöltés előkészítés, modell-betöltés):
+   a sáv mozog, de nem hazudik százalékot. */
+.progress-bar-container.indeterminate .progress-bar {
+    width: 35% !important;
+    animation: progressSlide 1.4s var(--ease) infinite;
+}
+
+@keyframes progressSlide {
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(340%);
+    }
 }
 
 .status-detail {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
     color: var(--text-secondary);
-    background: rgba(0, 0, 0, 0.2);
-    padding: 8px 12px;
-    border-radius: 8px;
+    background: var(--well);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    word-break: break-word;
 }
 
 /* Editor Table */
@@ -580,7 +1723,7 @@ p {
     overflow-y: auto;
     border: 1px solid var(--border-color);
     border-radius: 16px;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--well-soft);
 }
 
 table {
@@ -613,12 +1756,12 @@ td {
 }
 
 tr:hover td {
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--tint-1);
 }
 
 td textarea {
     width: 100%;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--tint-2);
     border: 1px solid var(--border-color);
     color: var(--text-primary);
     font-family: inherit;
@@ -640,58 +1783,65 @@ td textarea:focus {
 /* Downloads */
 .download-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--space-4);
 }
 
 .download-card {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--surface-subtle);
     border: 1px solid var(--border-color);
-    border-radius: 16px;
-    padding: 24px;
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
     display: flex;
     flex-direction: column;
     align-items: center;
     text-decoration: none;
     color: var(--text-primary);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
 
 .download-card:hover {
     background: rgba(99, 102, 241, 0.08);
     border-color: var(--accent-color);
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--shadow-md);
 }
 
 .download-card .icon {
-    font-size: 2.5rem;
-    margin-bottom: 12px;
+    font-size: 2rem;
+    line-height: 1;
+    margin-bottom: var(--space-3);
 }
 
 .download-card .label {
-    font-size: 0.9rem;
-    font-weight: 600;
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
     text-align: center;
-    margin-bottom: 16px;
+    margin-bottom: var(--space-4);
+    line-height: var(--lh-tight);
 }
 
 .download-card-actions {
     display: flex;
-    gap: 8px;
+    gap: var(--space-2);
     width: 100%;
     margin-top: auto;
+    flex-wrap: wrap;
 }
 
+/* A kártyákon belül minden gomb kicsi és egyenlő szélességű — eddig ezt
+   oldalanként inline `style="font-size:.8rem;flex:1"` állította be. */
 .download-card-actions .btn {
-    flex: 1;
-    padding: 8px 12px;
-    font-size: 0.8rem;
+    flex: 1 1 0;
+    min-width: 72px;
+    padding: var(--space-2) var(--space-3);
+    min-height: 34px;
+    font-size: var(--fs-xs);
 }
 
 .hint {
     color: var(--text-secondary);
-    font-size: 0.9rem;
-    margin-bottom: 16px;
+    font-size: var(--fs-md);
+    margin-bottom: var(--space-4);
 }
 
 .hidden {
@@ -707,111 +1857,1368 @@ td textarea:focus {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 20px 16px;
+    padding: var(--space-8) var(--space-4);
+    gap: var(--space-8);
 }
 
 .hub-header {
     text-align: center;
-    margin-bottom: 20px;
+    max-width: 640px;
+}
+
+.hub-eyebrow {
+    font-size: var(--fs-2xs);
+    color: var(--accent-text);
+    font-weight: var(--fw-semibold);
+    letter-spacing: var(--ls-wider);
+    text-transform: uppercase;
+    margin-bottom: var(--space-3);
 }
 
 .hub-header h1 {
-    font-size: 1.6rem;
-    font-weight: 800;
-    background: linear-gradient(to right, #818cf8, #c084fc);
+    font-family: var(--font-display);
+    font-size: var(--fs-3xl);
+    font-weight: var(--fw-black);
+    background: var(--brand-gradient);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    letter-spacing: -1px;
-    margin-bottom: 4px;
+    letter-spacing: var(--ls-tight);
+    margin-bottom: var(--space-2);
 }
 
 .hub-header p {
-    font-size: 0.88rem;
+    font-size: var(--fs-md);
     color: var(--text-secondary);
     margin: 0;
 }
 
 .hub-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(212px, 1fr));
+    gap: var(--space-4);
     max-width: 1200px;
     width: 100%;
 }
 
 .tool-card {
-    background: var(--card-bg);
+    position: relative;
+    background: var(--surface-card);
     backdrop-filter: blur(12px);
     border: 1px solid var(--border-color);
-    border-radius: 14px;
-    padding: 16px 14px;
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     text-decoration: none;
     color: var(--text-primary);
-    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: var(--shadow-lg);
+    transition: background var(--dur-slow) var(--ease), border-color var(--dur-slow) var(--ease),
+        transform var(--dur-slow) var(--ease), box-shadow var(--dur-slow) var(--ease);
+    box-shadow: var(--shadow);
+    overflow: hidden;
 }
 
-.tool-card:hover {
+/* Folyamat-színű felső csík: a csempe színe megegyezik azzal az akcentussal,
+   amit a megnyíló lap process-bannere visel — a kettő így összekapcsolódik.
+   A színt a data-tile-id adja (lásd lentebb). */
+.tool-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: var(--tile-accent, var(--accent-color));
+    opacity: 0;
+    transition: opacity var(--dur) var(--ease);
+}
+
+.tool-card:hover,
+.tool-card:focus-visible {
     background: rgba(99, 102, 241, 0.08);
-    border-color: var(--accent-color);
+    border-color: var(--tile-accent, var(--accent-color));
     transform: translateY(-3px);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3), 0 0 18px rgba(99, 102, 241, 0.15);
+    box-shadow: var(--shadow-md), 0 0 18px rgba(99, 102, 241, 0.15);
+}
+
+.tool-card:hover::before,
+.tool-card:focus-visible::before {
+    opacity: 1;
+}
+
+.tool-card[data-tile-id="dub"] {
+    --tile-accent: var(--process-dub);
+    --tile-ink: var(--process-dub-ink);
+}
+
+.tool-card[data-tile-id="subtitle"] {
+    --tile-accent: var(--process-subtitle);
+    --tile-ink: var(--process-subtitle-ink);
+}
+
+.tool-card[data-tile-id="transcribe"] {
+    --tile-accent: var(--process-transcribe);
+    --tile-ink: var(--process-transcribe-ink);
+}
+
+.tool-card[data-tile-id="intro_outro"] {
+    --tile-accent: var(--process-intro-outro);
+    --tile-ink: var(--process-intro-outro-ink);
+}
+
+.tool-card[data-tile-id="ppt_replace"] {
+    --tile-accent: var(--process-ppt);
+    --tile-ink: var(--process-ppt-ink);
+}
+
+.tool-card[data-tile-id="ppt_narrate"] {
+    --tile-accent: var(--process-ppt-narrate);
+    --tile-ink: var(--process-ppt-narrate-ink);
+}
+
+.tool-card[data-tile-id="course"] {
+    --tile-accent: var(--process-course);
+    --tile-ink: var(--process-course-ink);
+}
+
+.tool-card[data-tile-id="convert"] {
+    --tile-accent: var(--process-convert);
+    --tile-ink: var(--process-convert-ink);
+}
+
+.tool-card[data-tile-id="flow"] {
+    --tile-accent: var(--indigo-400);
+    --tile-ink: var(--accent-text);
+    border-color: rgba(99, 102, 241, 0.45);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(168, 85, 247, 0.05));
+}
+
+.tool-card[data-tile-id="profile"] {
+    --tile-accent: var(--success);
+    --tile-ink: var(--success-text);
+    border-color: rgba(16, 185, 129, 0.35);
+}
+
+.tool-card[data-tile-id="admin"] {
+    --tile-accent: var(--danger);
+    --tile-ink: var(--danger-text);
+    border-color: rgba(239, 68, 68, 0.4);
 }
 
 .tool-card-icon {
-    font-size: 1.7rem;
-    margin-bottom: 8px;
+    font-size: 1.6rem;
+    margin-bottom: var(--space-3);
     line-height: 1;
 }
 
 .tool-card-title {
-    font-size: 0.92rem;
-    font-weight: 700;
-    margin-bottom: 2px;
+    font-family: var(--font-display);
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-bold);
+    margin-bottom: var(--space-1);
     color: var(--text-primary);
+    letter-spacing: var(--ls-tight);
 }
 
 .tool-card-subtitle {
-    font-size: 0.65rem;
-    color: var(--accent-color);
-    font-weight: 600;
+    font-size: var(--fs-3xs);
+    color: var(--tile-ink, var(--accent-text));
+    font-weight: var(--fw-semibold);
     text-transform: uppercase;
-    letter-spacing: 0.4px;
-    margin-bottom: 6px;
+    letter-spacing: var(--ls-wide);
+    margin-bottom: var(--space-2);
 }
 
 .tool-card-desc {
-    font-size: 0.74rem;
+    font-size: var(--fs-xs);
     color: var(--text-secondary);
-    line-height: 1.35;
+    line-height: var(--lh-normal);
     flex: 1;
 }
 
 .tool-card-arrow {
-    margin-top: 8px;
-    font-size: 0.95rem;
-    color: var(--accent-color);
-    transition: transform 0.2s;
+    margin-top: var(--space-3);
+    font-size: var(--fs-lg);
+    color: var(--tile-ink, var(--accent-text));
+    transition: transform var(--dur) var(--ease);
 }
 
-.tool-card:hover .tool-card-arrow {
+.tool-card:hover .tool-card-arrow,
+.tool-card:focus-visible .tool-card-arrow {
     transform: translateX(4px);
 }
 
 .hub-footer {
-    margin-top: 18px;
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: var(--space-4);
     flex-wrap: wrap;
     justify-content: center;
-    opacity: 0.6;
-    font-size: 0.78rem;
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+}
+
+.hub-footer a {
     color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: var(--radius-xs);
+}
+
+.hub-footer a:hover {
+    color: var(--text-primary);
+    text-decoration: underline;
+}
+
+/* A lábléc gombja link-szomszédos, ezért link-súlyt és -méretet visel. */
+.hub-footer .btn {
+    font-size: inherit;
+    font-weight: var(--fw-normal);
+    min-height: 0;
+    padding: var(--space-1) var(--space-2);
+}
+
+/* Bejelentkezés előtt a #userDisplay üres; enélkül egy magányos „·" lógott a
+   lábléc elején. */
+.hub-footer #userDisplay:empty,
+.hub-footer #userDisplay:empty+span {
+    display: none;
+}
+
+/* Alszekció a hubon ("Kapcsolódó szolgáltatások") — eddig a jelölőben
+   inline `style="font-size:.9rem;color:#94a3b8;text-transform:uppercase..."`. */
+.hub-section {
+    max-width: 1100px;
+    width: 100%;
+}
+
+.hub-section-title {
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--ls-wider);
+    margin: 0 0 var(--space-4);
+}
+
+.hub-section-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+/* =========================================================================
+   Batch-oldalak közös kerete
+   -------------------------------------------------------------------------
+   Az öt batch lap (batch, subtitle_batch, intro_outro_batch,
+   ppt_narrate_batch, transcribe_batch) egymás másolata: ugyanaz az oldalsáv,
+   szűrősor, dobózóna, letöltés-sáv és beállítás-doboz élt bennük, oldalanként
+   külön inline stílusokkal. Innentől ezek a közös osztályok.
+   ========================================================================= */
+
+/* Az oldalsáv navigációs blokkja, ami kitölti a helyet a monitorig. */
+.sidebar-nav.fill {
+    flex: 1;
+    min-height: 0;
+}
+
+/* Navigációs gomb az oldalsávban: teljes szélesség, balra zárt szöveg — hogy
+   több elem alatt a címkék egy vonalban kezdődjenek. */
+.btn-nav {
+    width: 100%;
+    justify-content: flex-start;
+    text-align: left;
+}
+
+/* Bekapcsolt szűrő-gomb. Eddig a JS írta át kézzel a background/color/
+   borderColor hármast ÖT külön példányban (négy oldal + batch_core.js). */
+.btn.active {
+    background: var(--success-soft);
+    border-color: var(--success);
+    color: var(--success-text);
+}
+
+/* Borostyán változat: a „folyamatban” szűrő nem hovatartozást jelöl (mint a
+   „saját munkák”), hanem szűkítést — más szín, hogy a kettő egyszerre is
+   olvasható legyen. */
+.btn.active-warn {
+    background: var(--warning-soft);
+    border-color: var(--warning);
+    color: var(--warning-text);
+}
+
+/* Kikapcsolt vezérlő-csoport (pl. a felhasználó-szűrő, amíg a „saját munkák”
+   aktív): halvány és nem kattintható, de a helye megmarad. */
+.is-disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+/* Figyelt-mappa jegyzet az oldalsávban. */
+.inbox-note {
+    padding: var(--space-4) var(--space-1);
+    color: var(--text-muted);
+    font-size: var(--fs-sm);
+}
+
+.inbox-note p {
+    margin: 0 0 var(--space-2);
+    font-size: inherit;
+    color: inherit;
+}
+
+.inbox-note p + p {
+    margin: var(--space-3) 0 0;
+    font-size: var(--fs-xs);
+}
+
+.inbox-path {
+    display: block;
+    background: var(--well);
+    padding: var(--space-2);
+    word-break: break-all;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xs);
+    color: var(--text-secondary);
+}
+
+/* Vízszintes eszköz-/szűrősor. */
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+}
+
+/* Címke + vezérlő szorosan egymás mellett, egy soron belül. */
+.field-inline {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--fs-sm);
+    color: var(--text-secondary);
+}
+
+.field-inline label {
+    font-size: inherit;
+    color: inherit;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+.field-value {
+    font-weight: var(--fw-semibold);
+    color: var(--text-primary);
+    min-width: 1.5em;
+    text-align: center;
+}
+
+/* Kiemelt beállítás-doboz (pl. „Brand intro/outro is”): a lap akcentusával
+   halványan aláfestve, hogy elváljon a sima szövegtől. */
+.option-box {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--fs-sm);
+    color: var(--text-secondary);
+    background: rgba(99, 102, 241, 0.05);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: var(--radius-md);
+}
+
+/* Semleges változat, keret nélküli aláfestéssel (ppt-narrate tömeges sor). */
+.option-box.plain {
+    background: var(--surface-subtle);
+    border-color: var(--border-color);
+}
+
+/* „A kész feladatok letöltése” sáv. */
+.download-bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-6);
+    padding: var(--space-4);
+    background: var(--surface-subtle);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.download-bar-label {
+    color: var(--text-secondary);
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+}
+
+/* Dobózóna kiegészítői. */
+.dropzone-icon {
+    font-size: 2rem;
+    line-height: 1;
+    margin-bottom: var(--space-4);
+}
+
+.dropzone-formats {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    margin-top: var(--space-2);
+}
+
+.queue-stats {
+    color: var(--text-secondary);
+    font-size: var(--fs-sm);
+    white-space: nowrap;
+}
+
+/* Feltöltési állapotsáv. A tartalmát a JS innerHTML-lel cseréli, ezért csak a
+   külső doboz stílusa él itt. */
+.upload-status {
+    margin-bottom: var(--space-4);
+    padding: var(--space-4);
+    background: var(--surface-hover);
+    border-radius: var(--radius-md);
+}
+
+.upload-status p {
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+/* A részleges feltöltés hibalistája (a JS generálja). */
+.upload-error-list {
+    color: var(--danger-text);
+    font-size: var(--fs-sm);
+    margin: var(--space-2) 0 0 var(--space-5);
+}
+
+/* A párhuzamosság-csúszka sora: a csúszka fix szélessége itt indokolt, mert
+   az érték 1–3, nem kell hozzá több hely. */
+.concurrency-field {
+    margin-bottom: var(--space-8);
+}
+
+/* A csúszka fix szélessége itt indokolt: az érték 1–3, nem kell hozzá több
+   hely. Saját osztály, nem leszármazott-szelektor — így akkor is működik, ha a
+   csúszka nem a .concurrency-field-en belül ül. */
+.concurrency-range {
+    width: 120px;
+}
+
+/* Veszélyes / figyelmeztető mellékakció a fejlécben (Tárhely felszabadítása,
+   Visszaállítás): másodlagos gomb, de a színe elárulja a súlyát. */
+.btn-secondary.tone-warning {
+    color: var(--warning-text);
+    border-color: var(--warning);
+}
+
+.btn-secondary.tone-warning:hover:not(:disabled) {
+    background: var(--warning-soft);
+}
+
+.btn-secondary.tone-danger {
+    color: var(--danger-text);
+    border-color: var(--danger);
+}
+
+.btn-secondary.tone-danger:hover:not(:disabled) {
+    background: var(--danger-soft);
+}
+
+/* A megerősítő modal figyelmeztető változata (tárhely-felszabadítás). */
+.confirm-modal-box.tone-warning {
+    border-color: var(--warning);
+}
+
+.confirm-modal-box.tone-warning h3 {
+    color: var(--warning-text);
+}
+
+.confirm-modal-box ul {
+    color: var(--text-secondary);
+    font-size: var(--fs-md);
+    margin: 0 0 var(--space-6) var(--space-6);
+    line-height: var(--lh-relaxed);
+}
+
+.confirm-modal-box .callout {
+    background: var(--warning-soft);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    padding: var(--space-4);
+    margin-bottom: var(--space-6);
+    border-radius: var(--radius-sm);
+}
+
+.confirm-modal-box .callout label {
+    display: block;
+    color: var(--text-secondary);
+    font-size: var(--fs-sm);
+    margin-bottom: var(--space-2);
+}
+
+.confirm-modal-box .callout input {
+    width: 100%;
+}
+
+.confirm-modal-box .actions .btn {
+    flex: 1;
+}
+
+/* Szélesebb modal a tömeges PPT-narráció beállításainak. */
+.confirm-modal-box.bulk-config-box {
+    max-width: 520px;
+    text-align: left;
+}
+
+.bulk-status {
+    font-size: var(--fs-md);
+    color: var(--text-secondary);
+    min-height: 1.2em;
+    margin: var(--space-4) 0;
+}
+
+/* Rugalmasan növő elem egy .row-n belül (pl. select a mellette lévő gomb
+   mellett). */
+.grow {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Vízszintesen középre zárt sor (gombpár a kártya alján). */
+.row-center {
+    justify-content: center;
+}
+
+/* ============================================================
+   SEGÉDOSZTÁLYOK a JS-ből épített felületekhez (UI-9)
+   Ezek a minták 3-6 fájlban éltek inline stílusként, mert a
+   template-literálban nem volt hová tenni őket.
+   ============================================================ */
+
+/* ── Hangminta-feltöltő modal (voice_picker.js) ─────────────────────────
+   A modal jelölőjét JS építi, ezért a stílusa eddig teljes egészében
+   inline volt — hardkódolt sötét értékekkel, amik világos témában
+   olvashatatlan dobozt adtak (a „Mégse" 1,05:1 volt). (UI-9) */
+.vp-modal {
+    position: fixed;
+    inset: 0;
+    background: var(--scrim);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    /* Egy szinttel a többi modal FÖLÖTT: a hangminta-feltöltő a szinkron-
+       beállító modalból is nyílhat, tehát rá kell kerülnie. Eredetileg
+       fix 10000 volt a --z-modal 9000-hez képest. */
+    z-index: calc(var(--z-modal) + 1);
+}
+
+.vp-modal.is-open {
+    display: flex;
+}
+
+.vp-box {
+    background: var(--surface-raised);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    max-width: 480px;
+    width: 90%;
+    color: var(--text-primary);
+}
+
+.vp-box h3 {
+    margin: 0 0 var(--space-3);
+}
+
+.vp-lead {
+    font-size: var(--fs-sm);
+    color: var(--text-secondary);
+    margin: 0 0 var(--space-3);
+}
+
+.vp-label {
+    display: block;
+    font-size: var(--fs-xs);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-1);
+}
+
+.vp-field {
+    width: 100%;
+    padding: var(--space-2);
+    border: 1px solid var(--border-color);
+    background: var(--input-bg);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-3);
+}
+
+/* A fájlválasztó szaggatott kerete jelzi, hogy ide ejteni is lehet. */
+.vp-field.is-file {
+    border-style: dashed;
+    margin-bottom: var(--space-2);
+}
+
+.vp-hint {
+    font-size: var(--fs-3xs);
+    color: var(--text-muted);
+    margin-bottom: var(--space-3);
+}
+
+.vp-check {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--fs-sm);
+    color: var(--text-primary);
+    margin-bottom: var(--space-3);
+    cursor: pointer;
+    user-select: none;
+}
+
+.vp-check input {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+/* min-height: a státuszsor helye akkor is megvan, ha üres — különben a
+   gombok ugranának egyet az első üzenetnél. */
+.vp-status {
+    font-size: var(--fs-sm);
+    color: var(--text-secondary);
+    min-height: 1.2em;
+    margin-bottom: var(--space-3);
+}
+
+.vp-actions {
+    display: flex;
+    gap: var(--space-2);
+    justify-content: flex-end;
+}
+
+/* ── Munkaterület-VÁLTÓ — a márkanév alatti vezérlő (shared.js) ────────
+   Eddig egy pontozott aláhúzású szövegdarab volt a márkanév alatt, amit a
+   `btn.style.cssText` festett: nem látszott rajta, hogy kattintható, és nem
+   mondta meg, MIT vált — csak ott volt a felirat. Most saját komponens:
+   fejléc (mire vonatkozik + szerepkör-jelvény), alatta a tényleges vezérlő
+   (munkaterület-jel, név, chevron). (UI-16) */
+.ws-switch {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+.ws-switch-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.ws-switch-caption {
+    font-size: var(--fs-3xs);
+    text-transform: uppercase;
+    letter-spacing: var(--ls-wider);
+    font-weight: var(--fw-bold);
+    color: var(--text-faint);
+}
+
+/* A jelvény bal margóját itt a fejléc `gap`-je adja. */
+.ws-switch .role-badge {
+    margin-left: 0;
+}
+
+.ws-switch-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--tint-2);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semibold);
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease),
+        border-color var(--dur-fast) var(--ease);
+}
+
+.ws-switch-btn:hover {
+    background: var(--tint-3);
+    border-color: var(--border-color);
+}
+
+/* Munkaterület-jel: a rendszer akcent-gradiense, hogy a vezérlő ne egy
+   jeltelen szürke doboz legyen. */
+.ws-switch-mark {
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-xs);
+    background: var(--brand-gradient);
+}
+
+/* Hosszú munkaterület-név nem tolhatja szét a 300px-es oldalsávot. */
+.ws-switch-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ws-switch-caret {
+    flex-shrink: 0;
+    display: flex;
+    color: var(--text-faint);
+    transition: color var(--dur-fast) var(--ease);
+}
+
+.ws-switch-btn:hover .ws-switch-caret {
+    color: var(--text-secondary);
+}
+
+/* Soros változat: a hub láblécében egy sorban fut a többi hivatkozással,
+   ezért ott nincs fejléc-felirat, és a jelvény a gomb UTÁN jön. */
+.ws-switch.is-inline {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: 0;
+}
+
+.ws-switch.is-inline .ws-switch-head {
+    order: 2;
+}
+
+.ws-switch.is-inline .ws-switch-caption {
+    display: none;
+}
+
+.ws-switch.is-inline .ws-switch-btn {
+    width: auto;
+    padding: 2px var(--space-2);
+    font-size: inherit;
+    font-weight: var(--fw-medium);
+}
+
+/* ── Munkaterület-választó modal (shared.js) ────────────────────────────
+   A doboz keretét a JS `style.cssText`-tel állítja (tokenekkel), a belső
+   jelölő viszont innentől osztályokból él. (UI-9) */
+.ws-title {
+    margin: 0 0 var(--space-5);
+    font-size: 1rem;
+    font-weight: var(--fw-semibold);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--ls-wide);
+}
+
+.ws-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.ws-add {
+    margin-top: var(--space-5);
+    display: flex;
+    gap: var(--space-2);
+}
+
+.ws-add input {
+    flex: 1;
+    padding: var(--space-3) var(--space-4);
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    font-size: var(--fs-sm);
+    font-family: inherit;
+    color: var(--text-primary);
+    outline: none;
+}
+
+.ws-add button {
+    padding: var(--space-3) var(--space-4);
+    background: var(--accent-gradient);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semibold);
+    white-space: nowrap;
+    transition: filter var(--dur) var(--ease);
+}
+
+.ws-error {
+    color: var(--danger-text);
+    font-size: var(--fs-sm);
+    margin-top: var(--space-2);
+}
+
+/* ── Flow Builder inspector-panel (flow_builder.js) ─────────────────── */
+.fb-error {
+    color: var(--danger-text);
+    font-size: var(--fs-sm);
+    padding: var(--space-3);
+    border: 1px solid var(--danger);
+    border-radius: var(--radius-sm);
+    background: var(--danger-soft);
+}
+
+/* Forrás-/nyelő-csomópont kerete a futás-nézetben. */
+.fb-node-source {
+    border-color: rgba(16, 185, 129, 0.45);
+}
+
+.fb-node-sink {
+    border-color: rgba(245, 158, 11, 0.45);
+}
+
+/* Üres kanvas onboarding-blokkja. */
+.fb-empty-icon {
+    font-size: 2.5rem;
+    margin-bottom: var(--space-3);
+}
+
+.fb-empty-title {
+    font-size: 1rem;
+    font-weight: var(--fw-semibold);
+    margin-bottom: var(--space-2);
+}
+
+/* „most futó" jelölő a futás-listában. */
+.fb-now-chip {
+    font-size: var(--fs-3xs);
+    padding: 1px 5px;
+    background: var(--accent-color);
+    color: var(--text-on-accent);
+    border-radius: 3px;
+    margin-left: var(--space-1);
+}
+
+/* A feltöltő-csomópont állapotdoboza: zöld, ha van fájl, semleges, ha nincs. */
+.upload-node-status {
+    margin-top: var(--space-3);
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--accent-soft);
+    border: 1px solid var(--border-color);
+}
+
+.upload-node-status.is-filled {
+    background: var(--success-soft);
+    border-color: rgba(16, 185, 129, 0.35);
+}
+
+.fb-progress {
+    background: var(--input-bg);
+    border-radius: var(--radius-xs);
+    height: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.fb-progress-fill {
+    background: var(--accent-color);
+    height: 100%;
+    width: 0%;
+    transition: width var(--dur) var(--ease);
+}
+
+.mt-2 {
+    margin-top: var(--space-2);
+}
+
+.mt-3 {
+    margin-top: var(--space-3);
+}
+
+.break-all {
+    word-break: break-all;
+}
+
+/* A húzás közbeni él-előnézet a Flow Builder kanvasán. Az SVG
+   prezentációs attribútum nem vesz fel var()-t, ezért osztályból megy. */
+.flow-edge-preview {
+    stroke: var(--flow-accent, var(--accent-text));
+    stroke-width: 3;
+    stroke-dasharray: 5, 5;
+}
+
+/* Szerepkör-jelvény a márkanév mellett (shared.js). A három hangnem
+   tokenből jön; eddig három hardkódolt hex volt egy cssText-ben. */
+.role-badge {
+    display: inline-block;
+    margin-left: var(--space-2);
+    padding: 1px 7px;
+    border-radius: var(--radius-xs);
+    font-size: var(--fs-3xs);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--ls-wide);
+    vertical-align: middle;
+    color: var(--text-on-accent);
+    background: var(--accent-color);
+}
+
+.role-badge.is-admin {
+    background: var(--danger);
+}
+
+.role-badge.is-viewer {
+    background: var(--neutral-text);
+}
+
+/* A PPT-előzménysor függőleges elrendezése (a 3 soros kártya). */
+.job-item.is-stacked {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    align-items: stretch;
+}
+
+/* ── JS-ből épülő modalok (UI-13) ───────────────────────────────────────
+   A dedup.js és a quick_combo.js eddig egy-egy `<style>` blokkot szúrt a
+   `<head>`-be, hardkódolt sötét értékekkel — ez egy NEGYEDIK út a stílusra
+   a `style=` / `cssText` / `.style.X` mellett, és ugyanúgy kimaradt a
+   téma-váltásból: világos lapon sötét dobozként jelentek meg. Mindkét
+   modul minden fogyasztó lapja betölti a style.css-t, így a stílus ide
+   tartozik. */
+.dedup-ov,
+.qc-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--scrim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Egy szinttel a többi modal fölött: feltöltés közben nyílnak. */
+    z-index: calc(var(--z-modal) + 1);
+}
+
+.dedup-bx,
+.qc-box {
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    width: 90%;
+    box-shadow: var(--shadow-xl);
+}
+
+.dedup-bx {
+    max-width: 440px;
+    /* Itt korábban `font-family: sans-serif` állt, ami a rendszer
+       betűkészletét is felülírta ezen az egy dobozon. */
+}
+
+.qc-box {
+    min-width: 360px;
+    max-width: 480px;
+}
+
+.dedup-bx h3 {
+    margin: 0 0 var(--space-3);
+    color: var(--warning-text);
+}
+
+.dedup-bx p {
+    margin: var(--space-1) 0;
+    font-size: var(--fs-sm);
+}
+
+.dedup-meta {
+    color: var(--text-secondary);
+    font-size: var(--fs-xs);
+    word-break: break-all;
+}
+
+.dedup-row,
+.qc-actions {
+    display: flex;
+    gap: var(--space-2);
+    justify-content: flex-end;
+    margin-top: var(--space-5);
+}
+
+.qc-box label {
+    display: block;
+    font-size: var(--fs-xs);
+    color: var(--text-secondary);
+    margin: var(--space-3) 0 var(--space-1);
+    text-transform: uppercase;
+    letter-spacing: var(--ls-wide);
+}
+
+/* A `.qc-box select/input` saját szabálya KIMARADT: a globális űrlap-stílus
+   már mindent ad (szín, keret, sugár, térköz). Ráadásul a régi szabály
+   `background:` RÖVIDÍTÉSSEL ment, ami nullázta a `background-image`-et —
+   vagyis a quick-combo legördülőjéről eltűnt a saját nyíl. (NEGYEDIK BUKTATÓ) */
+
+.qc-status {
+    font-size: var(--fs-sm);
+    min-height: 1.2em;
+    margin-top: var(--space-2);
+}
+
+.qc-status.ok {
+    color: var(--success-text);
+}
+
+.qc-status.err {
+    color: var(--danger-text);
+}
+
+/* A külső szolgáltatások státusz-pöttyének pulzálása (external_services.js
+   eddig futásidőben szúrta be). A @keyframes név globális, ezért itt a
+   helye — lásd a korábbi névütközéseket. */
+@keyframes extsvc-pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.35;
+    }
+}
+
+/* Quick-combo modal fejléce (quick_combo.js építi). */
+.qc-title {
+    margin-top: 0;
+}
+
+.qc-lead {
+    color: var(--text-secondary);
+    font-size: var(--fs-sm);
+    margin: var(--space-2) 0 var(--space-4);
+}
+
+/* Statisztika-sor: néhány adat egymás mellett, kényelmes térközzel.
+   Eddig minden elemre külön `margin-right:16px` került. */
+.stat-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+/* A haladássáv indulóértéke, amíg az első valódi százalék megjön. A JS
+   innentől a `width`-et írja — az ADAT, nem stílusdöntés. */
+.progress-bar.is-start {
+    width: 10%;
+}
+
+/* Tömör ikon-gombsor a lista-sorok jobb szélén. */
+.row-actions {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+/* Eredmény-kártya csíkja a batch-összegzőben (intro/outro). */
+.result-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-3);
+    margin-bottom: var(--space-2);
+}
+
+.result-card.is-error {
+    border-left: 4px solid var(--danger);
+}
+
+.result-card.is-done {
+    border-left: 4px solid var(--success);
+}
+
+/* A history-lista sorainak állapot-csíkja. Négy fájl (szinkron, felirat,
+   leirat, PPT-háttércsere) állította inline, betűre ugyanazzal a két
+   értékkel — most egy helyen dől el. */
+.job-item.stage-error {
+    border-left: 3px solid var(--danger);
+}
+
+.job-item.stage-done {
+    border-left: 3px solid var(--success);
+}
+
+/* Egy sorba szorított, kipontozott szöveg (fájlnevek listákban). */
+.truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Két szélre húzott sor: cím balra, akciók jobbra. */
+.row-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* A hosszú cím felülre igazítva, ha a jobb oldal több soros. */
+.row-between.align-top {
+    align-items: flex-start;
+}
+
+/* Hibapanel: nem üres a lista, hanem elszállt a feldolgozás. Négy oldal
+   (szinkron, felirat, leirat, PPT-háttércsere) ugyanezt a dobozt írta le
+   inline, egyenként. */
+.error-panel {
+    background: var(--danger-soft);
+    border: 1px solid var(--danger);
+    border-radius: var(--radius-md);
+    padding: var(--space-5);
+    text-align: center;
+}
+
+.error-panel h3 {
+    color: var(--danger-text);
+    margin-bottom: var(--space-2);
+}
+
+.error-panel p {
+    color: var(--text-secondary);
+    margin-bottom: var(--space-4);
+}
+
+.error-panel-actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+/* Oszlopos, balra zárt változat: cím, a hiba (hosszú, pl. ffmpeg-kimenet)
+   szövege, gombsor, magyarázat — az intro/outro lap hibapanelje. Eddig
+   style.cssText-tel, beégetett színekkel festett. (UI-35) */
+.error-panel.is-stacked {
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+}
+
+/* Kártya szűkebb alsó margóval, ha közvetlenül alatta másik kártya jön. */
+.card-tight {
+    margin-bottom: var(--space-6);
+}
+
+/* Bekezdés-kiemelés: egy sor, félkövéren, a magyarázat fölött. */
+.lead-line {
+    font-weight: var(--fw-semibold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-2);
+}
+
+/* Címke + jelölőnégyzet egy sorban, kattintható egészként. */
+.inline-check {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+}
+
+/* Rács-cellában az aljára igazított vezérlő (hogy a szomszédos, címkézett
+   mezővel egy vonalban álljon az alja). */
+.field-bottom {
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 2px;
+}
+
+/* =========================================================================
+   Bejelentkező lap
+   -------------------------------------------------------------------------
+   A login.html korábban egyáltalán NEM töltötte be ezt a stíluslapot: saját,
+   180 soros inline <style>-ja volt, zöld→kék akcentussal és „AI Dubbing by
+   EDTI” márkanévvel, miközben az app mindenhol máshol indigó→ibolya és „EDTI
+   Stúdió”. Ez volt az egyetlen lap, ahol a felhasználó más terméket látott.
+   (A /style.css publikus útvonal — lásd backend/auth.py PUBLIC_PATHS —, ezért
+   a belépés előtt is betölthető.)
+   ========================================================================= */
+.login-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-5);
+    overflow: hidden;
+}
+
+/* Lassan úszó háttérfény. A ::before a <body>-n ül, ezért a kártya
+   z-index-szel kerül fölé. */
+.login-page::before {
+    content: '';
+    position: fixed;
+    inset: -50%;
+    background:
+        radial-gradient(ellipse at 30% 50%, rgba(99, 102, 241, 0.10) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 50%, rgba(168, 85, 247, 0.08) 0%, transparent 50%);
+    animation: loginBgShift 20s ease-in-out infinite alternate;
+    z-index: 0;
+    pointer-events: none;
+}
+
+@keyframes loginBgShift {
+    0% {
+        transform: translate(0, 0) rotate(0deg);
+    }
+
+    100% {
+        transform: translate(-5%, 3%) rotate(3deg);
+    }
+}
+
+.login-card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 400px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    padding: var(--space-12) var(--space-10);
+    box-shadow: var(--shadow-xl);
+}
+
+.login-logo {
+    text-align: center;
+    margin-bottom: var(--space-8);
+}
+
+.login-logo .icon {
+    font-size: 2.5rem;
+    line-height: 1;
+    margin-bottom: var(--space-3);
+    display: block;
+}
+
+.login-logo h1 {
+    font-family: var(--font-display);
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-black);
+    letter-spacing: var(--ls-tight);
+    background: var(--brand-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.login-logo p {
+    color: var(--text-muted);
+    font-size: var(--fs-sm);
+    margin-top: var(--space-2);
+}
+
+/* Az űrlapmező a globális input-szabályt örökli; itt csak a címke stílusa és
+   a teljes szélesség jön. */
+.login-field {
+    margin-bottom: var(--space-4);
+}
+
+.login-field label {
+    display: block;
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-medium);
+    color: var(--text-muted);
+    margin-bottom: var(--space-2);
+    text-transform: uppercase;
+    letter-spacing: var(--ls-wide);
+}
+
+.login-field input {
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--fs-lg);
+    border-radius: var(--radius-md);
+}
+
+/* Hibaüzenet. A megrázás jelzi, hogy ugyanaz a mező hibás megint — enélkül a
+   második sikertelen kísérletnél nem történik látható változás. */
+.form-error {
+    background: var(--danger-soft);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--radius-sm);
+    padding: var(--space-3) var(--space-4);
+    color: var(--danger-text);
+    font-size: var(--fs-sm);
+    margin-bottom: var(--space-4);
+    animation: errorShake 0.4s var(--ease);
+}
+
+@keyframes errorShake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    20% {
+        transform: translateX(-6px);
+    }
+
+    40% {
+        transform: translateX(6px);
+    }
+
+    60% {
+        transform: translateX(-4px);
+    }
+
+    80% {
+        transform: translateX(4px);
+    }
+}
+
+@media (max-width: 600px) {
+    .login-card {
+        padding: var(--space-8) var(--space-5);
+    }
+}
+
+/* =========================================================================
+   PWA telepítő-sáv (hub)
+   ========================================================================= */
+.install-banner {
+    margin: var(--space-6) auto 0;
+    max-width: 520px;
+    padding: var(--space-4);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(167, 139, 250, 0.1));
+    border: 1px solid rgba(99, 102, 241, 0.45);
+    border-radius: var(--radius-lg);
+    color: var(--text-primary);
+    font-size: var(--fs-md);
+    text-align: left;
+    box-shadow: var(--shadow-accent);
+}
+
+.install-banner p {
+    color: inherit;
+    margin-bottom: var(--space-3);
+}
+
+.install-banner .pwa-ios-hint {
+    display: block;
+    color: var(--accent-text);
+    font-size: var(--fs-sm);
+    margin-top: var(--space-2);
 }
 
 /* ============================================================
@@ -838,7 +3245,7 @@ td textarea:focus {
 }
 
 .step-indicator .step.done {
-    color: var(--success);
+    color: var(--success-text);
 }
 
 .step-indicator .step-num {
@@ -864,7 +3271,7 @@ td textarea:focus {
 .step-indicator .step.done .step-num {
     border-color: var(--success);
     background: rgba(16, 185, 129, 0.15);
-    color: var(--success);
+    color: var(--success-text);
 }
 
 .step-indicator .step-line {
@@ -872,25 +3279,6 @@ td textarea:focus {
     height: 1px;
     background: var(--border-color);
     min-width: 32px;
-}
-
-/* ============================================================
-   BACK TO HUB BUTTON
-   ============================================================ */
-.back-to-hub {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    text-decoration: none;
-    margin-bottom: 20px;
-    padding: 4px 0;
-    transition: color 0.2s;
-}
-
-.back-to-hub:hover {
-    color: var(--text-primary);
 }
 
 /* ============================================================
@@ -965,7 +3353,7 @@ td textarea:focus {
 }
 
 .lang-toggle button:hover:not(.active) {
-    background: rgba(255,255,255,0.04);
+    background: var(--tint-3);
 }
 
 /* ============================================================
@@ -982,8 +3370,8 @@ td textarea:focus {
     padding: 3px 12px;
     border-radius: 100px;
     border: 1px solid #444;
-    background: #1a1a2e;
-    color: #9ca3af;
+    background: var(--surface-raised);
+    color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.2s;
     white-space: nowrap;
@@ -991,13 +3379,13 @@ td textarea:focus {
 
 .date-pill:hover {
     border-color: #6b7280;
-    color: #e5e7eb;
+    color: var(--text-primary);
 }
 
 .date-pill.active {
-    background: rgba(99, 102, 241, 0.2);
-    border-color: #6366f1;
-    color: #a5b4fc;
+    background: var(--accent-soft-hover);
+    border-color: var(--accent-color);
+    color: var(--accent-text);
 }
 
 /* ============================================================
@@ -1019,24 +3407,27 @@ td textarea:focus {
    RESPONSIVE — tablet/mobile breakpoints
    ============================================================ */
 
-/* ── 900px: sidebar starts to hurt ── */
-@media (max-width: 900px) {
+/* Kanonikus töréspontok — 1024 / 768 / 600. Korábban öt különböző érték élt
+   (900, 860, 700, 640, 600), oldalanként más helyen törve a felületet. */
+
+/* ── lg (1024px): az oldalsáv keskenyedik, a tartalom padding szűkül ── */
+@media (max-width: 1024px) {
     .sidebar {
-        width: 220px;
-        padding: 20px 12px;
+        width: 232px;
+        padding: var(--space-5) var(--space-3);
     }
 
     .main-content {
-        padding: 20px 16px;
+        padding: var(--space-6) var(--space-4);
     }
 
     .card {
-        padding: 20px 16px;
+        padding: var(--space-5) var(--space-4);
     }
 }
 
-/* ── 700px: hide sidebar, full-width layout ── */
-@media (max-width: 700px) {
+/* ── md (768px): az oldalsávból felső csík lesz ── */
+@media (max-width: 768px) {
     body {
         overflow: auto;
     }
@@ -1050,43 +3441,80 @@ td textarea:focus {
         flex-direction: row;
         flex-wrap: wrap;
         align-items: center;
-        padding: 12px 16px;
-        gap: 8px;
+        padding: var(--space-3) var(--space-4);
+        gap: var(--space-2);
         border-right: none;
         border-bottom: 1px solid var(--border-color);
+        position: sticky;
+        top: 0;
+        z-index: var(--z-banner);
+        background: var(--surface-raised);
     }
 
     .sidebar .brand {
         flex: 1;
+        min-width: 0;
     }
 
     .sidebar .brand h1 {
-        font-size: 1.1rem;
+        font-size: var(--fs-xl);
         margin-bottom: 0;
     }
 
-    /* Hide server monitor on mobile */
-    #serverMonitor {
+    /* A navigáció vízszintes sorrá lapul a fejlécben, nem tűnik el. */
+    .sidebar-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+        margin-bottom: 0;
+        gap: var(--space-2);
+    }
+
+    .sidebar-nav .btn {
+        width: auto;
+        min-height: 34px;
+        padding: var(--space-2) var(--space-3);
+        font-size: var(--fs-xs);
+    }
+
+    .sidebar-section-label {
         display: none;
     }
 
-    /* Hide full nav block, show only essential links */
-    .sidebar nav {
-        display: none;
-    }
-
-    .history-list {
+    /* Mobilon a szerver-monitor, az előzmények és a dátumszűrő nem fér el
+       értelmesen a fejlécben; a főfeladat (feltöltés/indítás) marad. */
+    #serverMonitor,
+    .sidebar nav:not(.sidebar-nav),
+    .history-list,
+    .date-filter-pills {
         display: none;
     }
 
     .main-content {
-        padding: 16px 12px;
+        padding: var(--space-4) var(--space-3);
         flex: 1;
     }
 
     .card {
-        padding: 16px 12px;
-        border-radius: 12px;
+        padding: var(--space-4) var(--space-3);
+        border-radius: var(--radius-lg);
+    }
+
+    /* Hüvelykujj-méretű célpont: az alsó akciók teljes szélességben. */
+    .actions {
+        margin-top: var(--space-6);
+    }
+
+    .actions .btn {
+        flex: 1 1 100%;
+    }
+
+    .flex-row {
+        flex-direction: column;
+        gap: var(--space-4);
+    }
+
+    .upload-area.small {
+        width: 100%;
     }
 }
 
@@ -1097,8 +3525,8 @@ td textarea:focus {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 1.5rem;
-    gap: 0.75rem;
+    margin-bottom: var(--space-6);
+    gap: var(--space-3);
     flex-wrap: wrap;
 }
 
@@ -1109,13 +3537,13 @@ td textarea:focus {
 
 .batch-header-actions {
     display: flex;
-    gap: 0.5rem;
+    gap: var(--space-2);
     flex-wrap: wrap;
     align-items: center;
 }
 
-/* Batch item: stack info + actions on narrow screens */
-@media (max-width: 640px) {
+/* ── sm (600px): minden egyoszlopos ── */
+@media (max-width: 600px) {
     .batch-item {
         flex-direction: column;
         align-items: flex-start;
@@ -1141,6 +3569,111 @@ td textarea:focus {
     flex-wrap: wrap;
     gap: 4px;
 }
+
+/* ============================================================
+   BATCH-SOR BELSEJE (UI-8)
+   A sorokat JS-template-literál építi, ezért ezek a stílusok eddig
+   inline attribútumként utaztak — és kimaradtak MINDEN jelölő- és
+   kontraszt-ellenőrzésből. Az egyik következménye itt is látszott: a
+   haladássáv vályúja `#333` volt, ami világos témában fekete csíkot
+   húzott a világos kártyára.
+
+   A folyamat-színt a lap adja meg a --batch-accent lap-szintű
+   tokennel (a PPT Narráció ibolya, a többi indigó); dinamikus ÉRTÉK
+   (pl. a kitöltés szélessége) továbbra is inline marad — az adat, nem
+   stílusdöntés.
+   ============================================================ */
+
+.batch-row-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.batch-item .batch-info h4.batch-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.batch-row-actions {
+    margin-left: var(--space-4);
+}
+
+.batch-progress {
+    height: 4px;
+    width: 100%;
+    margin-top: var(--space-2);
+    background: var(--well);
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+}
+
+.batch-progress-fill {
+    height: 100%;
+    background: var(--batch-accent, var(--accent-color));
+    transition: width var(--dur-slow) var(--ease);
+}
+
+/* Kész állapot: a sáv zöldre vált. Eddig a JS írta be a #10b981-et
+   közvetlenül a `style.background`-ba. */
+.batch-progress-fill.is-done {
+    background: var(--success);
+}
+
+/* Státuszsor a fájlnév alatt; a hangnem adja a színt. */
+.batch-note {
+    margin-top: var(--space-1);
+    font-weight: var(--fw-semibold);
+}
+
+/* A SZÖVEG a tintát kapja, nem a telített folyamat-színt: a #7c3aed a sötét
+   kártyán 2,74:1 volt. A sáv kitöltése marad a telített árnyalat. */
+.batch-note.tone-progress {
+    color: var(--batch-accent-ink, var(--accent-text));
+}
+
+/* ETA- és beragadás-jelzés a státuszsor mellett (a shared.js rakja ki).
+   Mindkettő `#a78bfa` / `#ef4444` literál volt, világos lapon 2,5:1 körül. */
+.job-eta,
+.job-stuck {
+    font-size: var(--fs-xs);
+    margin-left: var(--space-2);
+}
+
+.job-eta {
+    color: var(--text-muted);
+    font-weight: var(--fw-medium);
+}
+
+.job-stuck {
+    color: var(--danger-text);
+    font-weight: var(--fw-semibold);
+}
+
+.batch-note.tone-success {
+    color: var(--success-text);
+}
+
+.batch-note.tone-warning {
+    color: var(--warning-text);
+}
+
+.batch-note.tone-danger {
+    color: var(--danger-text);
+}
+
+.batch-note.tone-muted {
+    color: var(--text-secondary);
+    font-weight: var(--fw-normal);
+}
+
+/* A kisebb, nem kiemelt státuszsor (mentve-jelzés, hibaüzenet). */
+.batch-note.is-sm {
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-normal);
+}
 /* ============================================================
    SERVER LOAD MONITOR WIDGET
    ============================================================ */
@@ -1155,7 +3688,7 @@ td textarea:focus {
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #555;
+    color: var(--text-faint);
     margin-bottom: 8px;
 }
 
@@ -1168,26 +3701,27 @@ td textarea:focus {
 
 .monitor-label {
     min-width: 38px;
-    color: #666;
+    color: var(--text-muted);
 }
 
 .monitor-bar-bg {
     flex: 1;
     height: 6px;
-    background: #222;
+    background: var(--surface-raised);
     border-radius: 3px;
     overflow: hidden;
 }
 
 .monitor-bar-fill {
     height: 100%;
+    width: 0;
     border-radius: 3px;
     transition: width 0.5s ease;
     background: var(--success);
 }
 
 .monitor-bar-fill.warn {
-    background: #f59e0b;
+    background: var(--warning);
 }
 
 .monitor-bar-fill.danger {
@@ -1197,19 +3731,66 @@ td textarea:focus {
 .monitor-val {
     min-width: 34px;
     text-align: right;
-    color: #aaa;
+    color: var(--text-secondary);
     font-size: 0.75rem;
+}
+
+.monitor-row-storage {
+    margin-top: var(--space-1);
+}
+
+.monitor-row-storage .monitor-label {
+    min-width: 64px;
+    color: var(--text-faint);
+}
+
+.monitor-row-storage .monitor-val {
+    text-align: left;
+    flex: 1;
+    color: var(--success-text);
+    font-weight: var(--fw-semibold);
 }
 
 .monitor-queue {
-    margin-top: 4px;
-    font-size: 0.75rem;
-    color: #666;
+    margin-top: var(--space-1);
+    font-size: var(--fs-2xs);
+    color: var(--text-muted);
 }
 
 .monitor-queue span {
-    color: var(--success);
-    font-weight: 600;
+    color: var(--success-text);
+    font-weight: var(--fw-semibold);
+}
+
+/* =========================================================================
+   Beragadt job mentőöve + minőségi összefoglaló
+   ========================================================================= */
+.stuck-job-actions {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-2);
+}
+
+.quality-card {
+    background: var(--surface-raised);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--space-4) var(--space-5);
+    margin-bottom: var(--space-5);
+    font-size: var(--fs-sm);
+    color: var(--text-secondary);
+}
+
+.quality-card-title {
+    font-weight: var(--fw-semibold);
+    color: var(--success-text);
+    margin-bottom: var(--space-2);
+}
+
+/* "Mentés lemezre" sor a letöltés-szekció tetején. */
+.save-row {
+    margin-bottom: var(--space-5);
 }
 
 /* =========================================================================
@@ -1225,26 +3806,8 @@ td textarea:focus {
    Új osztályok, a régiek érintetlenek — oldalról-oldalra migrálható.
    ========================================================================= */
 
-:root {
-    /* Folyamat-színek. Az egyes folyamatok ugyanabban a formában és
-       elrendezésben élnek, csak a fő akcentus különbözik — így elég vizuális
-       jel ahhoz, hogy a felhasználó tudja, hol van, anélkül, hogy a felület
-       valóban különbözne. */
-    --process-dub: #6366f1;
-    --process-dub-bg: rgba(99, 102, 241, 0.15);
-    --process-subtitle: #06b6d4;
-    --process-subtitle-bg: rgba(6, 182, 212, 0.15);
-    --process-transcribe: #10b981;
-    --process-transcribe-bg: rgba(16, 185, 129, 0.15);
-    --process-intro-outro: #f59e0b;
-    --process-intro-outro-bg: rgba(245, 158, 11, 0.15);
-    --process-ppt: #a855f7;
-    --process-ppt-bg: rgba(168, 85, 247, 0.15);
-    --process-course: #ec4899;
-    --process-course-bg: rgba(236, 72, 153, 0.15);
-    --process-ppt-narrate: #7c3aed;
-    --process-ppt-narrate-bg: rgba(124, 58, 237, 0.15);
-}
+/* A folyamat-színek a fájl tetején, a token-blokkban élnek (UI-1) — itt
+   korábban egy második :root duplikálta őket. */
 
 /* ---------- process-banner -------------------------------------------------
    Minden lap tetején ez a csík mondja meg, hol vagy. Kötelező, erős kontraszt
@@ -1254,23 +3817,27 @@ td textarea:focus {
 .process-banner {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 14px 20px;
-    border-radius: 12px;
-    border: 1.5px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.02);
-    margin-bottom: 1.5rem;
-    font-size: 1.05rem;
-    font-weight: 600;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-5);
+    border-radius: var(--radius-md);
+    border: 1.5px solid var(--border-color);
+    background: var(--surface-subtle);
+    margin-bottom: var(--space-6);
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
 }
 
 .process-banner .process-icon {
-    font-size: 1.75rem;
+    font-size: 1.6rem;
     line-height: 1;
+    flex-shrink: 0;
 }
 
+/* A szövegblokk sosem eshet 180px alá: enélkül keskeny kijelzőn a mód-pill és
+   a single↔batch váltó ráfutott a folyamat nevére. */
 .process-banner .process-text {
-    flex: 1;
+    flex: 1 1 180px;
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -1278,57 +3845,88 @@ td textarea:focus {
 }
 
 .process-banner .process-title {
-    font-size: 1.05rem;
-    font-weight: 700;
-    line-height: 1.2;
+    font-family: var(--font-display);
+    font-size: var(--fs-xl);
+    font-weight: var(--fw-bold);
+    line-height: var(--lh-tight);
 }
 
 .process-banner .process-subtitle {
-    font-size: 0.8rem;
-    font-weight: 400;
-    opacity: 0.75;
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-normal);
+    opacity: 0.8;
+}
+
+@media (max-width: 600px) {
+    .process-banner {
+        padding: var(--space-3) var(--space-4);
+    }
+
+    /* A "EGY FÁJL" pill ugyanazt mondja, mint a mellette lévő aktív váltó-fül;
+       keskeny kijelzőn csak helyet vesz el a folyamat nevétől. */
+    .process-banner .single-pill,
+    .process-banner .batch-pill {
+        display: none;
+    }
+
+    .process-toggle {
+        margin-left: 0;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .process-toggle a {
+        flex: 1;
+        text-align: center;
+    }
 }
 
 .process-banner[data-process="dub"] {
     border-color: var(--process-dub);
     background: var(--process-dub-bg);
-    color: #c7d2fe;
+    color: var(--process-dub-ink);
 }
 
 .process-banner[data-process="subtitle"] {
     border-color: var(--process-subtitle);
     background: var(--process-subtitle-bg);
-    color: #a5f3fc;
+    color: var(--process-subtitle-ink);
 }
 
 .process-banner[data-process="transcribe"] {
     border-color: var(--process-transcribe);
     background: var(--process-transcribe-bg);
-    color: #a7f3d0;
+    color: var(--process-transcribe-ink);
 }
 
 .process-banner[data-process="intro_outro"] {
     border-color: var(--process-intro-outro);
     background: var(--process-intro-outro-bg);
-    color: #fde68a;
+    color: var(--process-intro-outro-ink);
 }
 
 .process-banner[data-process="ppt_replace"] {
     border-color: var(--process-ppt);
     background: var(--process-ppt-bg);
-    color: #e9d5ff;
+    color: var(--process-ppt-ink);
 }
 
 .process-banner[data-process="course"] {
     border-color: var(--process-course);
     background: var(--process-course-bg);
-    color: #fbcfe8;
+    color: var(--process-course-ink);
 }
 
 .process-banner[data-process="ppt_narrate"] {
     border-color: var(--process-ppt-narrate);
     background: var(--process-ppt-narrate-bg);
-    color: #ddd6fe;
+    color: var(--process-ppt-narrate-ink);
+}
+
+.process-banner[data-process="convert"] {
+    border-color: var(--process-convert);
+    background: var(--process-convert-bg);
+    color: var(--process-convert-ink);
 }
 
 /* Batch pill — ha data-mode="batch", a banner jobb oldalára kerül egy jól
@@ -1348,7 +3946,7 @@ td textarea:focus {
 .single-pill {
     display: inline-block;
     background: rgba(255, 255, 255, 0.1);
-    color: #e5e7eb;
+    color: var(--text-primary);
     padding: 3px 10px;
     border-radius: 12px;
     font-size: 0.72rem;
@@ -1360,7 +3958,7 @@ td textarea:focus {
 /* ---------- process-toggle (egy fájl ↔ batch) ----------------------------- */
 .process-toggle {
     display: inline-flex;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--tint-3);
     border-radius: 24px;
     padding: 3px;
     gap: 3px;
@@ -1373,18 +3971,18 @@ td textarea:focus {
     font-size: 0.85rem;
     font-weight: 500;
     text-decoration: none;
-    color: #9ca3af;
+    color: var(--text-secondary);
     transition: all 0.15s;
     white-space: nowrap;
 }
 
 .process-toggle a.active {
-    background: rgba(255, 255, 255, 0.12);
-    color: #fff;
+    background: var(--tint-4);
+    color: var(--text-primary);
 }
 
 .process-toggle a:hover:not(.active) {
-    color: #e5e7eb;
+    color: var(--text-primary);
 }
 
 /* ---------- advanced-settings (collapsible) ------------------------------- */
@@ -1393,9 +3991,9 @@ td textarea:focus {
    maradjon, de a haladó vezérlés mindenhol elérhető legyen. */
 .advanced-settings {
     margin: 1.25rem 0;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--tint-4);
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--tint-1);
     overflow: hidden;
 }
 
@@ -1403,7 +4001,7 @@ td textarea:focus {
     padding: 12px 16px;
     cursor: pointer;
     font-weight: 500;
-    color: #cbd5e1;
+    color: var(--text-secondary);
     list-style: none;
     display: flex;
     align-items: center;
@@ -1428,12 +4026,12 @@ td textarea:focus {
 }
 
 .advanced-settings>summary:hover {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--tint-2);
 }
 
 .advanced-settings>.advanced-body {
     padding: 16px 18px;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 1px solid var(--tint-3);
     display: grid;
     gap: 14px;
 }
@@ -1447,24 +4045,31 @@ td textarea:focus {
 
 .advanced-settings .field-row label {
     font-size: 0.9rem;
-    color: #cbd5e1;
+    color: var(--text-secondary);
     font-weight: 500;
 }
 
+/* FIGYELEM: itt `background-color` és `padding-block/inline-start` kell, NEM
+   a `background` / `padding` rövidítés. A rövidítés némán nullázza a hosszú
+   alakokat, amikre a közös select-szabály épül (background-image = a rajzolt
+   nyíl, padding-right = a helye) — a nyíl nyomtalanul eltűnne. */
 .advanced-settings .field-row select,
 .advanced-settings .field-row input[type="text"],
 .advanced-settings .field-row input[type="number"] {
-    background: #0f0f1e;
-    border: 1px solid #333;
-    color: #e5e7eb;
-    padding: 6px 10px;
-    border-radius: 6px;
-    font-size: 0.9rem;
+    background-color: var(--surface-sunken);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding-block: 6px;
+    padding-inline-start: 10px;
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-md);
 }
 
 @media (max-width: 600px) {
     .advanced-settings .field-row {
         grid-template-columns: 1fr;
+        gap: var(--space-2);
+        align-items: stretch;
     }
 }
 
@@ -1486,9 +4091,9 @@ td textarea:focus {
 .job-queue-empty {
     text-align: center;
     padding: 2.5rem 1rem;
-    color: #6b7280;
+    color: var(--text-muted);
     font-size: 0.95rem;
-    border: 1px dashed rgba(255, 255, 255, 0.08);
+    border: 1px dashed var(--tint-4);
     border-radius: 10px;
 }
 
@@ -1497,15 +4102,15 @@ td textarea:focus {
     grid-template-columns: 110px 1.5fr 2fr auto;
     gap: 14px;
     align-items: center;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: var(--tint-1);
+    border: 1px solid var(--tint-3);
     border-radius: 10px;
     padding: 12px 16px;
     transition: border-color 0.15s, background 0.15s;
 }
 
 .job-queue-row:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--tint-3);
 }
 
 .job-queue-row[data-status="running"] {
@@ -1532,7 +4137,7 @@ td textarea:focus {
 
 .job-queue-row .file-name {
     font-weight: 500;
-    color: #e5e7eb;
+    color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1541,7 +4146,7 @@ td textarea:focus {
 
 .job-queue-row .sub-meta {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--text-muted);
     margin-top: 2px;
 }
 
@@ -1556,7 +4161,7 @@ td textarea:focus {
     margin: 0;
     flex: 1;
     height: 8px;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--tint-4);
     border-radius: 4px;
     overflow: hidden;
     min-width: 120px;
@@ -1570,7 +4175,7 @@ td textarea:focus {
 
 .job-queue-row .stage-text {
     font-size: 0.8rem;
-    color: #9ca3af;
+    color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1604,40 +4209,43 @@ td textarea:focus {
 }
 
 .job-queue-status-pill[data-status="queued"] {
-    background: rgba(156, 163, 175, 0.2);
-    color: #d1d5db;
+    background: var(--neutral-soft);
+    color: var(--neutral-text);
 }
 
 .job-queue-status-pill[data-status="running"] {
-    background: rgba(99, 102, 241, 0.25);
-    color: #a5b4fc;
+    background: var(--accent-soft-hover);
+    color: var(--accent-text);
 }
 
 .job-queue-status-pill[data-status="done"] {
-    background: rgba(16, 185, 129, 0.22);
-    color: #6ee7b7;
+    background: var(--success-soft);
+    color: var(--success-text);
 }
 
 .job-queue-status-pill[data-status="error"] {
-    background: rgba(239, 68, 68, 0.25);
-    color: #fca5a5;
+    background: var(--danger-soft);
+    color: var(--danger-text);
 }
 
+/* A három testvér (running/done/error) mind a saját `-soft` + `-text` párját
+   használja; ez egyedül a --text-muted-ot vitte, ami a semleges felületen
+   sötét témában 2,78:1 volt. (UI-8) */
 .job-queue-status-pill[data-status="cancelled"],
 .job-queue-status-pill[data-status="canceled"] {
-    background: rgba(107, 114, 128, 0.22);
-    color: #9ca3af;
+    background: var(--neutral-soft);
+    color: var(--neutral-text);
 }
 
 .job-queue-status-pill[data-status="interrupted"] {
-    background: rgba(245, 158, 11, 0.25);
-    color: #fcd34d;
+    background: var(--warning-soft);
+    color: var(--warning-text);
 }
 
-@media (max-width: 860px) {
+@media (max-width: 768px) {
     .job-queue-row {
         grid-template-columns: 1fr;
-        gap: 10px;
+        gap: var(--space-2);
     }
 
     .job-queue-row .actions {
@@ -1661,8 +4269,8 @@ td textarea:focus {
     padding: 12px 18px;
     border-radius: 10px;
     font-size: 0.9rem;
-    background: #1f2937;
-    color: #fff;
+    background: var(--surface-raised);
+    color: var(--text-primary);
     border-left: 4px solid var(--process-dub);
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
     animation: toastIn 0.2s ease-out;
@@ -1716,7 +4324,7 @@ td textarea:focus {
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: var(--scrim);
     z-index: 9999;
     align-items: center;
     justify-content: center;
@@ -1727,7 +4335,7 @@ td textarea:focus {
 }
 
 .confirm-modal-box {
-    background: #1a1a2e;
+    background: var(--surface-raised);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     padding: 1.5rem 1.75rem;
@@ -1739,11 +4347,11 @@ td textarea:focus {
 .confirm-modal-box h3 {
     margin: 0 0 0.75rem;
     font-size: 1.1rem;
-    color: #fff;
+    color: var(--text-primary);
 }
 
 .confirm-modal-box p {
-    color: #9ca3af;
+    color: var(--text-secondary);
     margin: 0 0 1.5rem;
     line-height: 1.5;
     font-size: 0.92rem;
@@ -1754,4 +4362,226 @@ td textarea:focus {
     gap: 0.75rem;
     justify-content: flex-end;
     margin: 0;
+}
+
+.mb-2 {
+    margin-bottom: var(--space-2);
+}
+
+.mb-3 {
+    margin-bottom: var(--space-3);
+}
+
+.mt-4 {
+    margin-top: var(--space-4);
+}
+
+.mt-5 {
+    margin-top: var(--space-5);
+}
+
+.mb-5 {
+    margin-bottom: var(--space-5);
+}
+
+.mt-6 {
+    margin-top: var(--space-6);
+}
+
+.mb-6 {
+    margin-bottom: var(--space-6);
+}
+
+.mb-0 {
+    margin-bottom: 0;
+}
+
+/* Oldalsáv-elem burkolója a régebbi lapokon (intro/outro, admin, feliratok,
+   leirat, PPT-háttércsere, profil). A migrált lapok `.sidebar-nav` +
+   `.btn-nav` párost használnak; ezek a burkolók az azelőtti szerkezet, és
+   betűre ugyanazokat az értékeket vitték inline. */
+.sidebar-item {
+    padding: 0 var(--space-4);
+    margin-bottom: var(--space-2);
+}
+
+.sidebar-item.is-tight {
+    padding: 0 var(--space-1);
+}
+
+.sidebar-item.is-spaced {
+    margin-bottom: var(--space-4);
+}
+
+/* Kiemelt elsődleges gomb: a rendszer akcent-árnyéka. Eddig két lapon
+   kézzel írt `box-shadow` glow volt a jelölőben. */
+/* Balra zárt teljes szélességű gomb (oldalsáv-navigáció a régi lapokon).
+   A .btn alapból inline-flex + justify-content:center. */
+.btn-block.is-left {
+    justify-content: flex-start;
+    text-align: left;
+}
+
+.no-underline {
+    text-decoration: none;
+}
+
+.text-right {
+    text-align: right;
+}
+
+/* Vízszintesen görgethető sáv (széles táblák szűk kijelzőn). */
+.scroll-x {
+    overflow-x: auto;
+}
+
+/* Szorosabb sor, mint a .row: ikon + érték párokhoz. */
+.row-tight {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.gap-1 {
+    gap: var(--space-1);
+}
+
+.gap-2 {
+    gap: var(--space-2);
+}
+
+.ml-2 {
+    margin-left: var(--space-2);
+}
+
+.ml-3 {
+    margin-left: var(--space-3);
+}
+
+.mb-1 {
+    margin-bottom: var(--space-1);
+}
+
+.my-3 {
+    margin: var(--space-3) 0;
+}
+
+.clickable {
+    cursor: pointer;
+}
+
+.font-normal {
+    font-weight: var(--fw-normal);
+}
+
+/* Halkított elem (másodlagos kijelentkezés-gomb az oldalsávban). */
+.is-faded {
+    opacity: 0.7;
+}
+
+/* Nem kattintható, csak jelző elem (pl. „ez az aktuális oldal"). */
+.is-inert {
+    cursor: default;
+    border-style: dashed;
+}
+
+/* Rugalmas oszlop olvasható minimummal. */
+.grow-250 {
+    flex: 1;
+    min-width: 250px;
+}
+
+/* Rövid, fix szélességű számmező (tárhely-korlát az adminon). */
+.input-80 {
+    width: 80px;
+    padding: var(--space-1) var(--space-2);
+}
+
+/* Jelölés nélküli lista (a böngésző pontjai nélkül). */
+.plain-list {
+    list-style: none;
+    padding: 0;
+}
+
+/* Behúzott felsorolás, a böngésző alapértelmezett paddingja helyett. */
+.indent-list {
+    margin: 0 0 0 1.2rem;
+    padding: 0;
+}
+
+.scroll-y {
+    max-height: 200px;
+    overflow-y: auto;
+    text-align: left;
+}
+
+/* A style guide egyik demó-sávjának szélessége. */
+.w-62 {
+    width: 62%;
+}
+
+/* Az oldalsáv navigációs blokkja a régebbi lapokon (admin, profil). */
+.sidebar-nav-block {
+    margin-top: var(--space-8);
+    flex: 1;
+}
+
+/* Magyarázó jegyzet az oldalsávban. */
+.sidebar-note {
+    padding: var(--space-4) var(--space-1);
+    color: var(--text-muted);
+    font-size: var(--fs-xs);
+}
+
+/* Művelet visszajelzése egy kártyán belül. A min-height fenntartja a
+   helyét üresen is, különben a gombok ugranának az első üzenetnél. */
+.status-line {
+    font-size: var(--fs-sm);
+    color: var(--text-secondary);
+    min-height: 1.2em;
+    margin: var(--space-3) 0;
+}
+
+/* Rögzített magasságú szövegdoboz (a szín/keret a globális űrlap-stílusból). */
+.textarea-sm {
+    width: 100%;
+    height: 40px;
+    resize: vertical;
+}
+
+.textarea-md {
+    width: 100%;
+    height: 60px;
+    resize: vertical;
+}
+
+/* Feliratminőség-kártya (feliratok oldal). */
+.quality-report-card {
+    background: var(--surface-raised);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--space-4) var(--space-5);
+    margin-bottom: var(--space-5);
+}
+
+.gap-3 {
+    gap: var(--space-3);
+}
+
+.wrap {
+    flex-wrap: wrap;
+}
+
+/* Halkabb, másodlagos teljes szélességű gomb (kijelentkezés az oldalsávban). */
+.btn-block.is-quiet {
+    font-size: var(--fs-xs);
+    opacity: 0.7;
+}
+
+.btn-glow {
+    box-shadow: var(--shadow-accent);
+}
+
+.btn-glow.tone-danger {
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
 }

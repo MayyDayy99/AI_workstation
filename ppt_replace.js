@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ============================================================
 function setVideo(file) {
     if (!file) return;
-    const allowed = ['.mp4', '.mov', '.mkv', '.avi'];
+    const allowed = ['.mp4', '.mov', '.mkv', '.f4v', '.avi'];
     const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
     if (!allowed.includes(ext)) {
         setStatus('videoStatus', `Nem engedélyezett formátum: ${ext}`, 'err');
@@ -138,24 +138,11 @@ async function uploadBoth() {
     btn.disabled = true;
     btn.textContent = 'Feltöltés...';
 
-    const formData = new FormData();
-    formData.append('file', pendingVideo);
-    if (needsPptx) formData.append('pptx_file', pendingPptx);
-
     setStatus('videoStatus', 'Feltöltés folyamatban...', '');
     if (needsPptx) setStatus('pptxStatus', 'Feltöltés folyamatban...', '');
 
     try {
-        const res = await fetch(`${PPT_API}/upload`, {
-            method: 'POST',
-            body: formData,
-        });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.detail || 'Feltöltés sikertelen');
-        }
-        const data = await res.json();
-        currentJobId = data.job_id;
+        currentJobId = await _uploadVideoAndPptx(pendingVideo, needsPptx ? pendingPptx : null);
 
         setStatus('videoStatus', '✓ Feltöltve', 'ok');
         if (needsPptx) setStatus('pptxStatus', '✓ Feltöltve', 'ok');
@@ -169,6 +156,49 @@ async function uploadBoth() {
         btn.textContent = 'Feltöltés és tovább →';
         _checkBothSelected();
     }
+}
+
+// A videó DARABOLVA (5 MiB), a PPTX utána külön — egyben a Cloudflare-alagút
+// ~100 MB fölött eldobja a kérést, így egy előadás-videóval ez a lap eddig
+// használhatatlan volt. A backend 'ppt_replace' célja ppt_replace-jobot hoz
+// létre, a PPTX-et az /upload-pptx csatolja. (Funkció-ellenőrzés, 7/12.)
+// Tartalék: az egyben küldés, ha az UploadQueue nincs meg. → job_id.
+async function _uploadVideoAndPptx(video, pptx) {
+    if (!(window.UploadQueue && window.DedupUpload && DedupUpload.computeSignature)) {
+        const formData = new FormData();
+        formData.append('file', video);
+        if (pptx) formData.append('pptx_file', pptx);
+        const res = await fetch(`${PPT_API}/upload`, { method: 'POST', body: formData });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'Feltöltés sikertelen');
+        }
+        return (await res.json()).job_id;
+    }
+    const jobId = await new Promise((resolve, reject) => {
+        const q = new UploadQueue({
+            maxConcurrent: 1,
+            onProgress: ({ percent, state }) => {
+                if (state && state !== 'done' && state !== 'error' && state !== 'cancelled') {
+                    setStatus('videoStatus', `Feltöltés folyamatban... ${percent}%`, '');
+                }
+            },
+            onComplete: ({ job_id }) => job_id ? resolve(job_id)
+                : reject(new Error('a feltöltés nem adott vissza job-azonosítót')),
+            onError: ({ error }) => reject(new Error(error)),
+        });
+        q.enqueue(video, { purpose: 'ppt_replace' });
+    });
+    if (pptx) {
+        const fd = new FormData();
+        fd.append('pptx_file', pptx);
+        const res = await fetch(`${PPT_API}/upload-pptx/${jobId}`, { method: 'POST', body: fd });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error('PPTX: ' + (err.detail || 'HTTP ' + res.status));
+        }
+    }
+    return jobId;
 }
 
 // ============================================================
@@ -189,6 +219,7 @@ async function startProcessing() {
     const btn = document.getElementById('startBtn');
     btn.disabled = true;
     btn.textContent = 'Indítás...';
+    restoreStatusSection();
     showSection('statusSection');
     setStep(3);
 
@@ -226,14 +257,53 @@ async function startProcessing() {
 
 function startPolling() {
     if (pollTimer) clearInterval(pollTimer);
+    restoreStatusSection();
     pollTimer = setInterval(checkStatus, POLL_MS);
     checkStatus();
+}
+
+// A hibapanel eddig a #statusSection TELJES tartalmát lecserélte: a következő
+// job (másik history-elem, új feltöltés) updateStatusUI-ja a hiányzó
+// #progressBar-on TypeError-t dobott, a poll elnyelte — a lap a régi
+// hibapanelen ragadt, a Mégse/Folytatás gomb eltűnt. Most a panel csak
+// FÉLRETESZI az eredeti elemeket, és minden új követés visszarakja őket.
+// (Funkció-ellenőrzés, 7/12; ugyanez a leirat/felirat/szinkron lapon: UI-20.)
+let _parkedStatus = null;
+
+function showStatusError(status, jobId, canRetry = true) {
+    const sec = document.getElementById('statusSection');
+    if (!_parkedStatus) {
+        _parkedStatus = document.createDocumentFragment();
+        while (sec.firstChild) _parkedStatus.appendChild(sec.firstChild);
+    }
+    sec.innerHTML = `
+        <div class="error-panel">
+            <h3>❌ Hiba a feldolgozás során</h3>
+            <p>${esc(status.error_detail || status.detail || status.error || 'Ismeretlen hiba történt.')}</p>
+            <div class="error-panel-actions">
+                ${canRetry ? `<button onclick="retryJob('${jobId}')" class="btn btn-accent">🔄 Újra feldolgozás (hibás törlése)</button>` : ''}
+                <button onclick="deletePPTJob('${jobId}', event)" class="btn btn-secondary">🗑 Törlés</button>
+            </div>
+        </div>
+    `;
+}
+
+function restoreStatusSection() {
+    if (!_parkedStatus) return;
+    document.getElementById('statusSection').replaceChildren(_parkedStatus);
+    _parkedStatus = null;
 }
 
 async function checkStatus() {
     if (!currentJobId) return;
     try {
         const res = await fetch(`${PPT_API}/status/${currentJobId}`);
+        if (res.status === 404) {
+            // A job már nincs a szerveren: eddig örökké pollozott.
+            clearInterval(pollTimer);
+            showStatusError({ detail: 'Ez a feladat már nem létezik a szerveren (törölték, vagy lejárt a megőrzési ideje).' }, currentJobId, false);
+            return;
+        }
         const status = await res.json();
         updateStatusUI(status);
 
@@ -248,17 +318,7 @@ async function checkStatus() {
             _showResumeUI();
         } else if (status.stage === 'error') {
             clearInterval(pollTimer);
-            // Insert error panel dynamically
-            document.getElementById('statusSection').innerHTML = `
-                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: 8px; padding: 20px; text-align: center;">
-                    <h3 style="color:#ef4444; margin-bottom:8px;">❌ Hiba a feldolgozás során</h3>
-                    <p style="color:var(--text-secondary); margin-bottom:16px;">${status.error_detail || status.detail || status.error || 'Ismeretlen hiba történt.'}</p>
-                    <div style="display:flex; justify-content:center; gap:12px;">
-                        <button onclick="retryJob('${currentJobId}')" class="btn btn-accent" style="box-shadow: 0 0 10px rgba(99,102,241,0.5);">🔄 Újra feldolgozás (hibás törlése)</button>
-                        <button onclick="resetPage();" class="btn btn-secondary">🗑 Törlés</button>
-                    </div>
-                </div>
-            `;
+            showStatusError(status, currentJobId);
         }
     } catch (e) {
         console.error('Polling hiba:', e);
@@ -430,7 +490,7 @@ function setStep(n) {
 function saveJobToHistory(jobId, name) {
     const history = JSON.parse(localStorage.getItem('pptReplaceJobs') || '[]');
     if (!history.find(j => j.id === jobId)) {
-        history.unshift({ id: jobId, name, date: new Date().toISOString() });
+        history.unshift({ id: jobId, name, date: new Date().toISOString(), ws: (typeof currentWorkspaceLabel === 'function' ? currentWorkspaceLabel() : null) });   // ws: TD-027
         if (history.length > 20) history.pop();
         localStorage.setItem('pptReplaceJobs', JSON.stringify(history));
     }
@@ -478,16 +538,11 @@ async function _enrichHistoryWithStage(history) {
 }
 
 async function retryJob(jobId) {
-    document.getElementById('statusSection').innerHTML = `
-        <div class="status-header">
-            <h2 id="jobStatusTitle">🔄 Újraindítás folyamatban...</h2>
-            <span id="jobStageBadge" class="badge">retry</span>
-        </div>
-        <p id="statusDetail" class="status-detail">Korábbi mentett adatok betöltése...</p>
-        <div class="progress-bar-container">
-            <div id="progressBar" class="progress-bar" style="width: 10%;"></div>
-        </div>
-    `;
+    // Az eredeti elemek vissza (a saját, csonka jelölése a Mégse gombot is
+    // elvitte), rajtuk az átmeneti szöveg.
+    restoreStatusSection();
+    updateStatusUI({ stage: 'uploaded', progress: 0, detail: 'Korábbi mentett adatok betöltése...' });
+    document.getElementById('jobStatusTitle').textContent = '🔄 Újraindítás folyamatban...';
     const btnEvent = window.event;
     if(btnEvent) btnEvent.stopPropagation();
     try {
@@ -500,6 +555,8 @@ async function retryJob(jobId) {
         startPolling();
     } catch (e) {
         alert("Hiba: " + e.message);
+        // A job továbbra is hibás: a hibapanele térjen vissza.
+        checkStatus();
     }
 }
 
@@ -514,11 +571,11 @@ window.retryJobFromHistory = function(jobId, event) {
 async function renderHistory() {
     const container = document.getElementById('jobHistory');
     const history = JSON.parse(localStorage.getItem('pptReplaceJobs') || '[]');
-    const filtered = history.filter(job => _matchHistoryDate(job.date));
+    const filtered = history.filter(job => _matchHistoryDate(job.date) && (typeof isInCurrentWorkspace !== 'function' || isInCurrentWorkspace(job.ws)));
     
     if (filtered.length === 0) {
         const msg = historyDateFilter === 'all' ? 'Nincs korábbi feladat' : (historyDateFilter === 'today' ? 'Ma még nincs feltöltés.' : 'Tegnap nincs feltöltés.');
-        container.innerHTML = `<div style="padding:20px;color:#555;font-size:0.85rem;">${msg}</div>`;
+        container.innerHTML = `<div class="empty-history">${msg}</div>`;
         return;
     }
 
@@ -533,21 +590,21 @@ function _renderPPTHistoryItems(container, items) {
         const div = document.createElement('div');
         div.className = 'job-item';
         if (job.id === currentJobId) div.classList.add('active');
-        if (job._stage === 'error') div.style.borderLeft = "3px solid #ef4444";
-        else if (job._stage === 'done') div.style.borderLeft = "3px solid #10b981";
+        if (job._stage === 'error') div.classList.add('stage-error');
+        else if (job._stage === 'done') div.classList.add('stage-done');
 
         const retryBtn = (job._stage === 'error' || job._stage === 'done')
-            ? `<button class="delete-btn" onclick="retryJobFromHistory('${job.id}', event)" title="Újra feldolgozás" style="margin-right:4px;">🔄</button>`
+            ? `<button class="delete-btn" onclick="retryJobFromHistory('${job.id}', event)" title="Újra feldolgozás">🔄</button>`
             : '';
 
         div.innerHTML = `
-            <div class="job-info" onclick="loadJob('${job.id}', ${esc(JSON.stringify(job.name))})" style="flex:1; overflow:hidden;">
-                <div style="font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+            <div class="job-info grow" onclick="loadJob('${job.id}', ${esc(JSON.stringify(job.name))})">
+                <div class="truncate">
                     ${esc(job.name)}
                 </div>
                 <div class="job-date">🕐 ${_fmtJobDate(job.date)}</div>
             </div>
-            <div style="display:flex; flex-shrink:0;">
+            <div class="row-actions">
                 ${retryBtn}
                 <button class="delete-btn" onclick="deletePPTJob('${job.id}', event)" title="Feladat törlése">🗑️</button>
             </div>
@@ -564,7 +621,8 @@ async function deletePPTJob(jobId, event) {
     if (!confirm('Biztosan törlöd ezt a PPT csere feladatot? Minden hozzá tartozó fájl véglegesen eltűnik.')) return;
     try {
         const res = await fetch(`${PPT_API}/job/${jobId}`, { method: 'DELETE' });
-        if (!res.ok) {
+        // 404: a szerveren már nincs meg — a cél teljesült (eddig a history-elem ott ragadt).
+        if (!res.ok && res.status !== 404) {
             let detail = 'HTTP ' + res.status;
             try { const b = await res.json(); if (b && b.detail) detail = b.detail; } catch (_) {}
             throw new Error(detail);
@@ -584,6 +642,8 @@ window.deletePPTJob = deletePPTJob;
 window.loadJob = async function(jobId, name) {
     currentJobId = jobId;
     originalFilename = name || 'output';
+    if (pollTimer) clearInterval(pollTimer);
+    restoreStatusSection();
     renderHistory();
     
     // Először lekérdezzük a státuszt, hogy ne induljunk el vakon
@@ -625,6 +685,7 @@ function resetPage() {
     pendingVideo = null;
     pendingPptx = null;
     if (pollTimer) clearInterval(pollTimer);
+    restoreStatusSection();
 
     setStatus('videoStatus', 'Nincs kiválasztva', '');
     setStatus('pptxStatus', 'Nincs kiválasztva', '');

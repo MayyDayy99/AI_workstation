@@ -29,6 +29,9 @@
 
     const VERSION = 'demo';           // KONSTANS — különben reload-loop
     const STORE_KEY = 'MOCK_STATE_v1';
+    // Hibakereséshez: localStorage.MOCK_DEBUG = '1' → minden elfogott API-hívás a konzolra kerül.
+    let DEBUG = false;
+    try { DEBUG = !!localStorage.getItem('MOCK_DEBUG'); } catch (_) {}
 
     // A version-check első-látogatásos reloadját is megelőzzük:
     try { localStorage.setItem('_appVersion', VERSION); } catch (_) {}
@@ -291,6 +294,7 @@
             else if (b instanceof Blob) raw = '[blob]';
         }
         const req = { method: method, path: path, query: query, body: body, form: form, raw: raw, url: String(url) };
+        if (DEBUG) console.log('[MOCK] →', method, path, body ? JSON.stringify(body).slice(0, 160) : '');
         for (const r of routes) {
             if (r.method !== method.toUpperCase()) continue;
             const m = path.match(r.re);
@@ -481,6 +485,8 @@
     // ─── Export ─────────────────────────────────────────────────
     window.MOCK = {
         route: route, sse: sse, resp: resp, file: file,
+        // belső hívás egy másik route-ra (pl. a darabolt feltöltés finalize-a a modul saját upload-route-jára)
+        call: function (method, url, body) { return dispatch(method, url, null, body === undefined ? null : body); },
         sim: sim, state: state, save: save,
         ts: ts, uid: uid, healthStats: healthStats,
         STAGE_TABLES: STAGE_TABLES,

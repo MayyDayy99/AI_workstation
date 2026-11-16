@@ -90,6 +90,16 @@
                 ['⚙️', 'Futtató', 'a lánc lépésenként, állapotkövetéssel fut le'],
             ],
         },
+        convert: {
+            icon: '🔄', title: 'Fájlkonvertáló — motorok',
+            intro: 'Dokumentum, kép, hang, videó és felirat átalakítása — és weblapból (HTML/ZIP) MP4 videó.',
+            steps: [
+                ['🔄', 'Filee', 'a klasszikus formátumváltás: DOCX → PDF, PNG → WebP, MOV → MP4, SRT → VTT…'],
+                ['🎥', 'Oldalfelvétel (headless Chrome)', 'bármilyen HTML-oldalt kockánként „lefotóz", saját órával — pontos tempó'],
+                ['🎬', 'HyperFrames', 'animált HTML-kompozícióból renderel videót'],
+                ['⚡', 'NVENC (GPU)', 'a képkockákból videókódolás a videókártyán'],
+            ],
+        },
         profile: {
             icon: '👤', title: 'Profil',
             intro: 'Itt nincs AI — fiókbeállítások, jelszó és munkaterületek kezelése.',
@@ -107,11 +117,12 @@
     css.textContent = [
         '.tool-card{position:relative;}',
         '.card-info-btn{position:absolute;top:10px;right:10px;width:26px;height:26px;',
-        ' border-radius:50%;border:1px solid rgba(255,255,255,0.18);',
-        ' background:rgba(255,255,255,0.06);color:#a5b4fc;font:700 0.8rem/1 system-ui;',
-        ' cursor:pointer;opacity:0.55;transition:all .18s;z-index:2;}',
-        '.card-info-btn:hover{opacity:1;background:rgba(99,102,241,0.35);color:#fff;',
-        ' transform:scale(1.15);border-color:#6366f1;box-shadow:0 0 12px rgba(99,102,241,0.5);}',
+        // a stúdió design-tokenjeiből: világos és sötét témán is olvasható
+        ' border-radius:50%;border:1px solid var(--border-subtle, rgba(255,255,255,0.18));',
+        ' background:var(--tint-2, rgba(255,255,255,0.06));color:var(--accent-color, #a5b4fc);font:700 0.8rem/1 system-ui;',
+        ' cursor:pointer;opacity:0.85;transition:all .18s;z-index:2;}',
+        '.card-info-btn:hover{opacity:1;background:var(--accent-color, #6366f1);color:#fff;',
+        ' transform:scale(1.15);border-color:var(--accent-color, #6366f1);box-shadow:0 0 12px rgba(99,102,241,0.45);}',
         '#_infoOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.65);',
         ' backdrop-filter:blur(5px);z-index:9998;display:flex;align-items:center;',
         ' justify-content:center;padding:16px;}',

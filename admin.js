@@ -27,14 +27,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     const role = (info && info.role) || 'editor';
     _currentUser = info && info.username;
     document.getElementById('myRoleSpan').textContent = role;
+    // A láthatóság OSZTÁLLYAL megy, nem `style.display`-jel: a jelölőben a
+    // `.hidden` él, ami `display:none !important` — azt egy inline `display`
+    // nem veszi le. (A csapda hetedszer; lásd docs/notes.)
+    const notAdmin = document.getElementById('notAdminMsg');
+    const adminContent = document.getElementById('adminContent');
     if (role !== 'admin') {
         // Nem admin → elrejtjük az admin-tartalmat, jelezzük hogy nincs joga
-        document.getElementById('notAdminMsg').style.display = 'block';
-        document.getElementById('adminContent').style.display = 'none';
+        notAdmin.classList.remove('hidden');
+        adminContent.classList.add('hidden');
         return;
     }
-    document.getElementById('adminContent').style.display = 'block';
-    document.getElementById('notAdminMsg').style.display = 'none';
+    adminContent.classList.remove('hidden');
+    notAdmin.classList.add('hidden');
     await loadUsers();
     await loadTrash();
     await loadStorageStats();
@@ -68,7 +73,7 @@ window.loadUsers = loadUsers;
 function renderUsers(users) {
     const tbody = document.getElementById('usersTbody');
     if (!users.length) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#6b7280;">Nincs felhasználó.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Nincs felhasználó.</td></tr>';
         return;
     }
     tbody.innerHTML = users.map(u => {
@@ -77,19 +82,19 @@ function renderUsers(users) {
         const created = u.created_at || u.created || '—';
         const pwChanged = u.password_changed_at || '—';
         const isMe = u.username && _currentUser && u.username.toLowerCase() === _currentUser.toLowerCase();
-        const meBadge = isMe ? ' <span style="color:#10b981; font-size:0.7rem;">(te)</span>' : '';
+        const meBadge = isMe ? ' <span class="text-2xs text-success">(te)</span>' : '';
         return `
             <tr>
                 <td><strong>${escapeHtml(u.username)}</strong>${meBadge}</td>
                 <td><span class="role-pill role-${role}">${role.toUpperCase()}</span></td>
-                <td style="color:#9ca3af; font-size:0.8rem;">${escapeHtml(wsList)}</td>
-                <td style="color:#9ca3af; font-size:0.8rem;">${escapeHtml(created)}</td>
-                <td style="color:#9ca3af; font-size:0.8rem;">${escapeHtml(pwChanged)}</td>
+                <td class="text-xs text-secondary">${escapeHtml(wsList)}</td>
+                <td class="text-xs text-secondary">${escapeHtml(created)}</td>
+                <td class="text-xs text-secondary">${escapeHtml(pwChanged)}</td>
                 <td>
                     <div class="user-actions">
-                        <button class="btn btn-secondary" onclick="openPwModal('${escapeJs(u.username)}')">🔑 Jelszó</button>
-                        <button class="btn btn-secondary" onclick="openRoleModal('${escapeJs(u.username)}','${role}')">🎭 Szerepkör</button>
-                        ${isMe ? '' : `<button class="btn btn-secondary" style="color:#ef4444;border-color:#ef4444;" onclick="deleteUser('${escapeJs(u.username)}')">🗑️ Törlés</button>`}
+                        <button class="btn btn-secondary" onclick="openPwModal(${jsArg(u.username)})">🔑 Jelszó</button>
+                        <button class="btn btn-secondary" onclick="openRoleModal(${jsArg(u.username)},${jsArg(role)})">🎭 Szerepkör</button>
+                        ${isMe ? '' : `<button class="btn btn-secondary btn-danger-quiet" onclick="deleteUser(${jsArg(u.username)})">🗑️ Törlés</button>`}
                     </div>
                 </td>
             </tr>
@@ -101,8 +106,14 @@ function escapeHtml(s) {
     if (s == null) return '';
     return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
-function escapeJs(s) {
-    return String(s || '').replace(/['"\\<>]/g, c => '\\' + c);
+// Érték inline eseménykezelőbe (onclick="f(…)"): JS-literál (JSON), azt pedig
+// HTML-escape-elve — a böngésző az attribútumot előbb HTML-ként bontja ki, és
+// csak utána futtatja JS-ként. A korábbi escapeJs (`\"`) HTML-ben nem védett:
+// egy `"`-t tartalmazó fájl- vagy felhasználónév lezárta az attribútumot, és
+// saját eseménykezelőt tett a gombra — a Kuka-lapon egy szerkesztő által
+// feltöltött fájl neve az admin böngészőjében futott volna. (R7)
+function jsArg(s) {
+    return escapeHtml(JSON.stringify(s == null ? '' : String(s)));
 }
 
 // ─── Új felhasználó modal ─────────────────────────────────────
@@ -281,9 +292,13 @@ async function loadAudit() {
             throw new Error(b.detail || ('HTTP ' + r.status));
         }
         const data = await r.json();
-        const entries = (data && data.entries) || data || [];
-        renderAudit(Array.isArray(entries) ? entries : []);
-        status.textContent = `${Array.isArray(entries) ? entries.length : 0} bejegyzés.`;
+        // The API returns a plain array. Never read `data.entries` off an array:
+        // that is Array.prototype.entries — a function, always truthy — so the
+        // old `(data && data.entries) || data` rendered "0 bejegyzés" for any log.
+        const entries = Array.isArray(data) ? data
+            : (data && Array.isArray(data.entries) ? data.entries : []);
+        renderAudit(entries);
+        status.textContent = `${entries.length} bejegyzés.`;
     } catch (e) {
         status.textContent = '❌ Hiba: ' + (e.message || e);
         status.className = 'err';
@@ -294,20 +309,20 @@ window.loadAudit = loadAudit;
 function renderAudit(entries) {
     const tbody = document.getElementById('auditTbody');
     if (!entries.length) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#6b7280;">Nincs audit bejegyzés.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Nincs audit bejegyzés.</td></tr>';
         return;
     }
     tbody.innerHTML = entries.map(e => {
         const target = e.target_id
-            ? `<code style="font-size:0.75rem;">${escapeHtml(e.target_kind || '')}:${escapeHtml(e.target_id.slice(0, 12))}</code>`
+            ? `<code class="text-xs">${escapeHtml(e.target_kind || '')}:${escapeHtml(e.target_id.slice(0, 12))}</code>`
             : '—';
         return `
             <tr>
-                <td style="color:#9ca3af; font-size:0.75rem; white-space:nowrap;">${escapeHtml(e.ts || '')}</td>
-                <td><strong>${escapeHtml(e.user || '')}</strong> <span style="color:#6b7280; font-size:0.7rem;">${escapeHtml(e.user_role || '')}</span></td>
-                <td><code style="font-size:0.78rem; color:#a5b4fc;">${escapeHtml(e.action || '')}</code></td>
+                <td class="text-xs text-secondary nowrap">${escapeHtml(e.ts || '')}</td>
+                <td><strong>${escapeHtml(e.user || '')}</strong> <span class="text-2xs text-muted">${escapeHtml(e.user_role || '')}</span></td>
+                <td><code class="text-xs text-accent">${escapeHtml(e.action || '')}</code></td>
                 <td>${target}</td>
-                <td style="color:#6b7280; font-size:0.75rem;">${escapeHtml(e.ip || '')}</td>
+                <td class="text-xs text-muted">${escapeHtml(e.ip || '')}</td>
             </tr>
         `;
     }).join('');
@@ -340,7 +355,7 @@ function renderTrash(items) {
     const tbody = document.getElementById('trashTbody');
     if (!tbody) return;
     if (!items.length) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#6b7280;">A kuka üres — semmit nem törölt senki az utóbbi időben.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">A kuka üres — semmit nem törölt senki az utóbbi időben.</td></tr>';
         return;
     }
     tbody.innerHTML = items.map(it => {
@@ -351,15 +366,15 @@ function renderTrash(items) {
         const fname = it.original_filename || ('item ' + it.id);
         return `
             <tr data-trash-id="${it.id}">
-                <td style="font-weight:500;">${escapeHtml(fname)}</td>
-                <td><code style="font-size:0.78rem; color:#a5b4fc;">${escapeHtml(mode)}</code></td>
-                <td style="color:#9ca3af;">${escapeHtml(owner)}</td>
-                <td style="color:#9ca3af; font-size:0.8rem;">${escapeHtml(status)}</td>
-                <td style="color:#6b7280; font-size:0.75rem; white-space:nowrap;">${escapeHtml(deleted)}</td>
+                <td class="font-medium">${escapeHtml(fname)}</td>
+                <td><code class="text-xs text-accent">${escapeHtml(mode)}</code></td>
+                <td class="text-secondary">${escapeHtml(owner)}</td>
+                <td class="text-xs text-secondary">${escapeHtml(status)}</td>
+                <td class="text-xs text-muted nowrap">${escapeHtml(deleted)}</td>
                 <td>
                     <div class="user-actions">
-                        <button class="btn btn-secondary" style="color:#10b981;border-color:#10b981;" onclick="restoreTrash(${it.id})">♻️ Visszaállítás</button>
-                        <button class="btn btn-secondary" style="color:#ef4444;border-color:#ef4444;" onclick="purgeTrash(${it.id}, '${escapeJs(fname)}')">🗑️ Végleges törlés</button>
+                        <button class="btn btn-secondary btn-success-quiet" onclick="restoreTrash(${Number(it.id) || 0})">♻️ Visszaállítás</button>
+                        <button class="btn btn-secondary btn-danger-quiet" onclick="purgeTrash(${Number(it.id) || 0}, ${jsArg(fname)})">🗑️ Végleges törlés</button>
                     </div>
                 </td>
             </tr>
@@ -414,6 +429,7 @@ const _MODE_LABELS = {
     'intro_outro': '🎬 Intro/Outro',
     'ppt_narrate': '🗣️ PPT Narráció',
     'ppt_replace': '🖼️ PPT Háttércsere',
+    'flow_input': '📥 Flow-bemenetek',
 };
 
 async function loadStorageStats() {
@@ -421,7 +437,7 @@ async function loadStorageStats() {
     const tbody = document.getElementById('storageTbody');
     if (!tbody) return;
     statsEl.textContent = 'Tárhely-infó betöltése…';
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#6b7280;">Betöltés…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Betöltés…</td></tr>';
     try {
         const r = await fetch(`${ADMIN_API}/storage/stats`, { credentials: 'same-origin' });
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -429,7 +445,8 @@ async function loadStorageStats() {
         // Disk-szintű összefoglaló
         if (data.disk) {
             const usedPct = data.disk.total > 0 ? Math.round(100 * data.disk.used / data.disk.total) : 0;
-            statsEl.innerHTML = `<strong>Lemez:</strong> ${data.disk.used_human} / ${data.disk.total_human} használt (${usedPct}%) · ${data.disk.free_human} szabad`;
+            const warn = usedPct >= 90 ? ' class="text-danger font-semibold"' : '';
+            statsEl.innerHTML = `<strong>Lemez (a job-ok meghajtója):</strong> <span${warn}>${data.disk.used_human} / ${data.disk.total_human} használt (${usedPct}%) · ${data.disk.free_human} szabad</span>`;
         } else {
             statsEl.textContent = '(Lemez-infó nem elérhető)';
         }
@@ -438,13 +455,24 @@ async function loadStorageStats() {
         for (const m of data.per_mode || []) {
             const label = _MODE_LABELS[m.mode] || m.mode;
             const btnDisabled = m.finished === 0 ? ' disabled' : '';
+            const btnStyle = 'font-size:0.8rem;padding:4px 10px;';
+            let reclaim = escapeHtml(m.reclaimable_human);
+            let actions = `<button class="btn btn-secondary btn-danger-quiet btn-xs" ${btnDisabled} onclick="cleanupMode(${jsArg(m.mode)}, ${jsArg(label)}, ${Number(m.finished) || 0}, ${jsArg(m.reclaimable_human)})">🗑️ Ürítés</button>`;
+            if (m.intermediates_supported) {
+                if (m.intermediate_jobs > 0) {
+                    reclaim += `<div class="text-xs text-warning">köztes: ${escapeHtml(m.intermediate_human)} (${m.intermediate_jobs} job)</div>`;
+                }
+                const interDisabled = m.intermediate_jobs > 0 ? '' : ' disabled';
+                actions += ` <button class="btn btn-secondary btn-warning-quiet btn-xs" ${interDisabled} title="Csak a nagy, újraelőállítható fájlok — az eredmények megmaradnak" onclick="cleanupIntermediates(${jsArg(m.mode)}, ${jsArg(label)})">🧹 Köztes fájlok</button>`;
+            }
             rows.push(`
                 <tr>
                     <td>${escapeHtml(label)}</td>
                     <td>${m.total}</td>
                     <td>${m.finished}</td>
-                    <td>${escapeHtml(m.reclaimable_human)}</td>
-                    <td><button class="btn btn-secondary" style="color:#ef4444;border-color:#ef4444;font-size:0.8rem;padding:4px 10px;"${btnDisabled} onclick="cleanupMode('${escapeJs(m.mode)}', '${escapeJs(label)}', ${m.finished}, '${escapeJs(m.reclaimable_human)}')">🗑️ Ürítés</button></td>
+                    <td>${escapeHtml(m.used_human || '–')}</td>
+                    <td>${reclaim}</td>
+                    <td class="nowrap">${actions}</td>
                 </tr>
             `);
         }
@@ -456,15 +484,16 @@ async function loadStorageStats() {
             rows.push(`
                 <tr>
                     <td>${escapeHtml(label)}</td>
-                    <td colspan="2" style="color:#6b7280;">${s.exists ? '(mappa)' : '(hiányzik)'}</td>
+                    <td colspan="2" class="text-muted">${s.exists ? '(mappa)' : '(hiányzik)'}</td>
                     <td>${escapeHtml(s.human)}</td>
-                    <td><button class="btn btn-secondary" style="color:#ef4444;border-color:#ef4444;font-size:0.8rem;padding:4px 10px;"${btnDisabled} onclick="${fnName}('${escapeJs(s.human)}')">🗑️ Ürítés</button></td>
+                    <td>${escapeHtml(s.human)}</td>
+                    <td><button class="btn btn-secondary btn-danger-quiet btn-xs" ${btnDisabled} onclick="${fnName}(${jsArg(s.human)})">🗑️ Ürítés</button></td>
                 </tr>
             `);
         }
-        tbody.innerHTML = rows.join('') || '<tr><td colspan="5" style="text-align:center; color:#6b7280;">Nincs adat</td></tr>';
+        tbody.innerHTML = rows.join('') || '<tr><td colspan="6" class="text-center text-muted">Nincs adat</td></tr>';
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#ef4444;">Hiba: ${escapeHtml(e.message || String(e))}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Hiba: ${escapeHtml(e.message || String(e))}</td></tr>`;
     }
 }
 window.loadStorageStats = loadStorageStats;
@@ -498,6 +527,44 @@ async function cleanupMode(mode, label, finishedCount, sizeHuman) {
     }
 }
 window.cleanupMode = cleanupMode;
+
+async function cleanupIntermediates(mode, label) {
+    const minAge = _getMinAgeHours();
+    const ageStr = minAge > 0 ? ` (csak ${minAge} óránál régebbi)` : '';
+    const post = async (dryRun) => {
+        const r = await fetch(`${ADMIN_API}/storage/cleanup-intermediates`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: mode, min_age_hours: minAge, dry_run: dryRun }),
+        });
+        if (!r.ok) {
+            const b = await r.json().catch(() => ({}));
+            throw new Error(b.detail || ('HTTP ' + r.status));
+        }
+        return r.json();
+    };
+    try {
+        // Dry run first: the confirmation then shows the exact figures for the
+        // current age filter, not the unfiltered estimate from the stats call.
+        const preview = await post(true);
+        if (!preview.jobs_touched) {
+            alert(`${label}: nincs üríthető köztes fájl${ageStr}.`);
+            return;
+        }
+        const note = mode === 'dub_full'
+            ? 'Szinkronnál csak a Demucs-kimenet törlődik — a 2. fázishoz szükséges fájlok maradnak.'
+            : 'A feliratok / leiratok megmaradnak (szerkeszthetők, exportálhatók), de ezek a job-ok elölről már nem futtathatók újra.';
+        if (!confirm(`${label}: ${preview.jobs_touched} job köztes fájljait törlöd${ageStr}?\nFelszabaduló tárhely: ${preview.bytes_freed_human}.\n\n${note}\n\nEz VÉGLEGES.`)) return;
+        const data = await post(false);
+        alert(`✓ Kész: ${data.jobs_touched} job, ${data.bytes_freed_human} felszabadítva.${data.errors && data.errors.length ? '\n\nHibák:\n' + data.errors.slice(0, 5).join('\n') : ''}`);
+        await loadStorageStats();
+        await loadAudit();
+    } catch (e) {
+        alert('Köztes fájlok ürítése sikertelen: ' + (e.message || e));
+    }
+}
+window.cleanupIntermediates = cleanupIntermediates;
 
 async function cleanupBatchInbox(sizeHuman) {
     const minAge = _getMinAgeHours();

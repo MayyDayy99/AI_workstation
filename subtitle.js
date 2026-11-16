@@ -45,7 +45,42 @@ async function handleVideoFile(file) {
     const nameEl = document.getElementById('videoFileName');
     nameEl.textContent = 'Feltöltés: ' + file.name;
     document.getElementById('videoDropZone').classList.add('loading');
+    const uploaded = (jobId) => {
+        currentJobId = jobId;
+        nameEl.textContent = 'Feltöltve: ' + file.name;
+        document.getElementById('startBtn').disabled = false;
+        saveJobToHistory(currentJobId, file.name);
+    };
 
+    // DARABOLT feltöltés (5 MiB-os darabok), ahogy a szinkron-lapon: a
+    // Cloudflare-alagút ~100 MB fölött eldobja az egyben küldött kérést, így
+    // egy előadás-videó innen eddig nem jutott fel. A 'dub_single' cél a
+    // szerveren a megadott módú jobot hozza létre (input.mp4), indítás
+    // nélkül — a lap feltölt → indít menete változatlan. (Funkció-ellenőrzés, 4/12.)
+    if (window.UploadQueue && window.DedupUpload && DedupUpload.computeSignature) {
+        await new Promise((resolve) => {
+            const q = new UploadQueue({
+                maxConcurrent: 1,
+                onProgress: ({ percent, state }) => {
+                    if (state && state !== 'done' && state !== 'error' && state !== 'cancelled') {
+                        nameEl.textContent = `Feltöltés: ${file.name} (${percent}%)`;
+                    }
+                },
+                onComplete: ({ job_id }) => {
+                    if (job_id) uploaded(job_id);
+                    else nameEl.textContent = 'Hiba: a feltöltés nem adott vissza job-azonosítót.';
+                    resolve();
+                },
+                onError: ({ error }) => { nameEl.textContent = 'Hiba: ' + error; resolve(); },
+            });
+            q.enqueue(file, { mode: 'subtitles_only', purpose: 'dub_single' });
+        });
+        document.getElementById('videoDropZone').classList.remove('loading');
+        return;
+    }
+
+    // Tartalék: egyben (ha az UploadQueue nem töltődött be) — Cloudflare-en
+    // át nagy fájlra 413-at adhat, ezért a darabolt út az elsődleges.
     const owner = getOwner() || 'default';
     const formData = new FormData();
     formData.append('file', file);
@@ -54,12 +89,12 @@ async function handleVideoFile(file) {
         const res = await fetch(`${API_URL}/upload?owner=${encodeURIComponent(owner)}&mode=subtitles_only`, {
             method: 'POST', body: formData
         });
-        if (!res.ok) throw new Error('Feltöltés sikertelen');
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'Feltöltés sikertelen');
+        }
         const data = await res.json();
-        currentJobId = data.job_id;
-        nameEl.textContent = 'Feltöltve: ' + file.name;
-        document.getElementById('startBtn').disabled = false;
-        saveJobToHistory(currentJobId, file.name);
+        uploaded(data.job_id);
     } catch (e) {
         nameEl.textContent = 'Hiba: ' + e.message;
     } finally {
@@ -73,32 +108,84 @@ async function handleVideoFile(file) {
 async function startProcessing() {
     if (!currentJobId) return;
     document.getElementById('startBtn').disabled = true;
+    restoreStatusSection();
     showSection('statusSection');
     setStep(2);
 
     try {
-        await fetch(`${API_URL}/start/${currentJobId}`, {
+        // A fetch csak hálózati hibánál dob: egy elutasított indítás (423,
+        // 429, 5xx) eddig csendben pollozásba futott, és a lap örökké a
+        // „Feltöltve" állapotot mutatta egy sosem sorba állított jobra.
+        const res = await fetch(`${API_URL}/start/${currentJobId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ mode: 'subtitles_only', auto_extract: false, enhance_ref: false })
         });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || `HTTP ${res.status}`);
+        }
         startPolling();
     } catch (e) {
         alert('Indítási hiba: ' + e.message);
         document.getElementById('startBtn').disabled = false;
+        showSection('uploadSection');
+        setStep(1);
     }
 }
 
 function startPolling() {
     if (pollTimer) clearInterval(pollTimer);
+    restoreStatusSection();
     pollTimer = setInterval(checkStatus, POLL_MS);
     checkStatus();
+}
+
+// A hibapanel eddig a #statusSection TELJES tartalmát lecserélte. A
+// következő job — másik history-elem, új feltöltés — így már nem találta az
+// állapot-elemeit: az updateStatusUI TypeError-t dobott, a poll elnyelte, egy
+// kész vagy szerkeszthető job sosem nyílt meg, a Mégse gomb pedig végleg
+// eltűnt. Most a panel csak FÉLRETESZI az eredeti elemeket, és minden új
+// követés (startPolling) visszarakja őket — ugyanazokat, a rájuk kötött
+// eseménykezelőkkel együtt. (Funkció-ellenőrzés, 4/12.)
+let _parkedStatus = null;
+
+function showStatusError(status, jobId, canRetry = true) {
+    const sec = document.getElementById('statusSection');
+    if (!_parkedStatus) {
+        _parkedStatus = document.createDocumentFragment();
+        while (sec.firstChild) _parkedStatus.appendChild(sec.firstChild);
+    }
+    sec.innerHTML = `
+        <div class="error-panel">
+            <h3>❌ Hiba a feldolgozás során</h3>
+            <p>${esc(status.error_detail || status.detail || status.error || 'Ismeretlen hiba történt.')}</p>
+            <div class="error-panel-actions">
+                ${canRetry ? `<button onclick="retryJob('${jobId}')" class="btn btn-accent">🔄 Újra feldolgozás</button>` : ''}
+                <button onclick="deleteSubtitleJob('${jobId}', event)" class="btn btn-secondary">🗑 Törlés</button>
+            </div>
+        </div>
+    `;
+}
+
+function restoreStatusSection() {
+    if (!_parkedStatus) return;
+    document.getElementById('statusSection').replaceChildren(_parkedStatus);
+    _parkedStatus = null;
 }
 
 async function checkStatus() {
     if (!currentJobId) return;
     try {
         const res = await fetch(`${API_URL}/status/${currentJobId}`);
+        if (res.status === 404) {
+            // A job már nincs a szerveren (törölték, vagy a lomtárból
+            // lejárt): eddig a lap 2 mp-enként örökké pollozott egy üres
+            // állapotra, angol „Job not found" felirattal.
+            clearInterval(pollTimer);
+            showStatusError({ detail: 'Ez a feladat már nem létezik a szerveren (törölték, vagy lejárt a megőrzési ideje).' }, currentJobId, false);
+            return;
+        }
         const status = await res.json();
         updateStatusUI(status);
 
@@ -112,17 +199,7 @@ async function checkStatus() {
             showDownloads();
         } else if (status.stage === 'error') {
             clearInterval(pollTimer);
-            // Insert error panel dynamically
-            document.getElementById('statusSection').innerHTML = `
-                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: 8px; padding: 20px; text-align: center;">
-                    <h3 style="color:#ef4444; margin-bottom:8px;">❌ Hiba a feldolgozás során</h3>
-                    <p style="color:var(--text-secondary); margin-bottom:16px;">${status.error_detail || status.detail || status.error || 'Ismeretlen hiba történt.'}</p>
-                    <div style="display:flex; justify-content:center; gap:12px;">
-                        <button onclick="retryJob('${currentJobId}')" class="btn btn-accent" style="box-shadow: 0 0 10px rgba(99,102,241,0.5);">🔄 Újra feldolgozás</button>
-                        <button onclick="resetPage();" class="btn btn-secondary">🗑 Törlés</button>
-                    </div>
-                </div>
-            `;
+            showStatusError(status, currentJobId);
         }
     } catch (e) {
         console.error('Polling hiba:', e);
@@ -130,16 +207,11 @@ async function checkStatus() {
 }
 
 async function retryJob(jobId) {
-    document.getElementById('statusSection').innerHTML = `
-        <div class="status-header">
-            <h2 id="jobStatusTitle">🔄 Újraindítás folyamatban...</h2>
-            <span id="jobStageBadge" class="badge">retry</span>
-        </div>
-        <p id="statusDetail" class="status-detail">Korábbi mentett adatok betöltése...</p>
-        <div class="progress-bar-container">
-            <div id="progressBar" class="progress-bar" style="width: 10%;"></div>
-        </div>
-    `;
+    // Az eredeti elemek vissza (a saját, csonka jelölése a Mégse gombot is
+    // elvitte), rajtuk az átmeneti szöveg.
+    restoreStatusSection();
+    updateStatusUI({ stage: 'retry', progress: 0, detail: 'Korábbi mentett adatok betöltése...' });
+    document.getElementById('jobStatusTitle').textContent = '🔄 Újraindítás folyamatban...';
     const btnEvent = window.event;
     if(btnEvent) btnEvent.stopPropagation();
     try {
@@ -152,6 +224,9 @@ async function retryJob(jobId) {
         startPolling();
     } catch (e) {
         alert("Hiba: " + e.message);
+        // A job továbbra is hibás: a hibapanele térjen vissza, ne ragadjon
+        // a lap az „Újraindítás folyamatban..." feliraton.
+        checkStatus();
     }
 }
 window.retryJobFromHistory = function(jobId, event) {
@@ -179,27 +254,48 @@ async function loadSegments() {
     const res = await fetch(`${API_URL}/job/${currentJobId}`);
     const data = await res.json();
     segmentsData = data.segments || [];
+    markUnsaved(false);   // frissen a szerverről
     renderSegments();
 }
 
+
+// A mentés HTTP-hibáját is hibaként kell kezelni: a fetch csak hálózati
+// hibánál dob, egy 500-as vagy 401-es válasznál nem — a gomb eddig ilyenkor
+// is sikert jelzett, miközben a szerkesztés nem ért a szerverre. (UI-18)
+async function _saveError(res) {
+    let detail = `HTTP ${res.status}`;
+    try { const b = await res.json(); if (b && b.detail) detail = b.detail; } catch (_) {}
+    const err = new Error(detail);
+    err.status = res.status;
+    return err;
+}
+
+// Igazat ad vissza, ha a szerkesztés a szerverre ért — az export erre vár,
+// mielőtt a mentett fájlból dolgozni kezdene.
 async function saveSegments() {
     const btn = document.getElementById('saveSegmentsBtn');
     btn.disabled = true;
     btn.textContent = 'Mentés...';
+    let ok = false;
     try {
-        await fetch(`${API_URL}/job/${currentJobId}/update`, {
+        const res = await fetch(`${API_URL}/job/${currentJobId}/update`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ segments: segmentsData })
         });
+        if (!res.ok) throw await _saveError(res);
+        ok = true;
+        markUnsaved(false);
         btn.textContent = 'Mentve ✓';
         setTimeout(() => { btn.textContent = 'Mentés'; }, 1500);
     } catch (e) {
-        alert('Mentési hiba: ' + e.message);
-        btn.textContent = 'Mentés';
+        btn.textContent = 'Nincs mentve';
+        // 401-nél a shared.js már kiírta a teendőt (belépés egy új lapon).
+        if (e.status !== 401) alert('Mentési hiba: ' + e.message);
     } finally {
         btn.disabled = false;
     }
+    return ok;
 }
 
 async function retranslate() {
@@ -210,11 +306,14 @@ async function retranslate() {
     setStep(2);
 
     try {
-        await fetch(`${API_URL}/job/${currentJobId}/retranslate`, {
+        const res = await fetch(`${API_URL}/job/${currentJobId}/retranslate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ segments: segmentsData })
         });
+        if (!res.ok) throw await _saveError(res);
+        // A backend a kapott szegmenseket a sorba állítás ELŐTT elmenti.
+        markUnsaved(false);
         startPolling();
     } catch (e) {
         alert('Fordítási hiba: ' + e.message);
@@ -226,6 +325,10 @@ async function retranslate() {
 }
 
 async function exportSubtitles() {
+    // Az export a MENTETT segments.json-ből dolgozik: a mentetlen javítás előbb
+    // menjen fel, különben a letöltött felirat a javítatlan szöveget hordja.
+    // (UI-18 — mérve: a hu.srt az eredeti mondatot tartalmazta.)
+    if (hasUnsavedChanges() && !(await saveSegments())) return;
     const btn = document.getElementById('exportSubtitlesBtn');
     btn.disabled = true;
     btn.textContent = '⏳ Exportálás...';
@@ -274,7 +377,7 @@ function setStep(n) {
 function saveJobToHistory(jobId, name) {
     const history = JSON.parse(localStorage.getItem('subtitleJobs') || '[]');
     if (!history.find(j => j.id === jobId)) {
-        history.unshift({ id: jobId, name, date: new Date().toISOString() });
+        history.unshift({ id: jobId, name, date: new Date().toISOString(), ws: (typeof currentWorkspaceLabel === 'function' ? currentWorkspaceLabel() : null) });   // ws: TD-027
         if (history.length > 20) history.pop();
         localStorage.setItem('subtitleJobs', JSON.stringify(history));
     }
@@ -324,11 +427,11 @@ async function _enrichHistoryWithStage(history) {
 async function renderHistory() {
     const container = document.getElementById('jobHistory');
     const history = JSON.parse(localStorage.getItem('subtitleJobs') || '[]');
-    const filtered = history.filter(job => _matchHistoryDate(job.date));
+    const filtered = history.filter(job => _matchHistoryDate(job.date) && (typeof isInCurrentWorkspace !== 'function' || isInCurrentWorkspace(job.ws)));
 
     if (filtered.length === 0) {
         const msg = historyDateFilter === 'all' ? 'Nincs korábbi feladat' : (historyDateFilter === 'today' ? 'Ma még nincs feltöltés.' : 'Tegnap nincs feltöltés.');
-        container.innerHTML = `<div style="padding:20px;color:#555;font-size:0.85rem;">${msg}</div>`;
+        container.innerHTML = `<div class="empty-history">${msg}</div>`;
         return;
     }
 
@@ -343,24 +446,24 @@ function _renderSubtitleHistoryItems(container, items) {
         const div = document.createElement('div');
         div.className = 'job-item';
         if (job.id === currentJobId) div.classList.add('active');
-        if (job._stage === 'error') div.style.borderLeft = "3px solid #ef4444";
-        else if (job._stage === 'done') div.style.borderLeft = "3px solid #10b981";
+        if (job._stage === 'error') div.classList.add('stage-error');
+        else if (job._stage === 'done') div.classList.add('stage-done');
 
         const retryBtn = (job._stage === 'error' || job._stage === 'done')
-            ? `<button class="delete-btn" onclick="retryJobFromHistory('${job.id}', event)" title="Újra feldolgozás" style="margin-right:4px;">🔄</button>`
+            ? `<button class="delete-btn" onclick="retryJobFromHistory('${job.id}', event)" title="Újra feldolgozás">🔄</button>`
             : '';
         // Konzisztencia a dub.html-lel: minden history-item mellett van
         // "Törlés" ikon. Backend + localStorage együtt takarítva.
         const deleteBtn = `<button class="delete-btn" onclick="deleteSubtitleJob('${job.id}', event)" title="Feladat törlése">🗑️</button>`;
 
         div.innerHTML = `
-            <div class="job-info" onclick="loadJob('${job.id}')" style="flex:1; overflow:hidden;">
-                <div style="font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+            <div class="job-info grow" onclick="loadJob('${job.id}')">
+                <div class="truncate">
                     ${esc(job.name)}
                 </div>
                 <div class="job-date">🕐 ${_fmtJobDate(job.date)}</div>
             </div>
-            <div style="display:flex; flex-shrink:0;">
+            <div class="row-actions">
                 ${retryBtn}${deleteBtn}
             </div>
         `;
@@ -369,13 +472,15 @@ function _renderSubtitleHistoryItems(container, items) {
 }
 
 // Feladat törlése a history-ból ÉS a szerverről. Backend-first: csak akkor
-// takarítjuk a localStorage-t, ha a DELETE 2xx-et adott.
+// takarítjuk a localStorage-t, ha a DELETE 2xx-et (vagy 404-et) adott.
 async function deleteSubtitleJob(jobId, event) {
     if (event) event.stopPropagation();
     if (!confirm('Biztosan törlöd ezt a feliratot? Minden hozzá tartozó fájl véglegesen eltűnik.')) return;
     try {
         const res = await fetch(`${API_URL}/job/${jobId}`, { method: 'DELETE' });
-        if (!res.ok) {
+        // A 404 azt jelenti, hogy a szerveren már nincs meg — a cél teljesült.
+        // Eddig ilyenkor hibát kapott, és a history-elem örökre ott ragadt.
+        if (!res.ok && res.status !== 404) {
             let detail = 'HTTP ' + res.status;
             try { const b = await res.json(); if (b && b.detail) detail = b.detail; } catch (_) {}
             throw new Error(detail);
@@ -392,6 +497,9 @@ async function deleteSubtitleJob(jobId, event) {
 }
 window.deleteSubtitleJob = deleteSubtitleJob;
 window.loadJob = function(jobId) {
+    // Másik job megnyitása a mentetlen szerkesztést csendben eldobná. (UI-18)
+    if (hasUnsavedChanges() && jobId !== currentJobId &&
+        !confirm('A szerkesztésed még nincs mentve. Eldobod, és megnyitod a másik feladatot?')) return;
     currentJobId = jobId;
     showSection('statusSection');
     setStep(2);
@@ -402,6 +510,7 @@ window.loadJob = function(jobId) {
 function resetPage() {
     currentJobId = null;
     if (pollTimer) clearInterval(pollTimer);
+    restoreStatusSection();
     segmentsData = [];
     document.getElementById('videoFileName').textContent = '';
     document.getElementById('startBtn').disabled = true;
@@ -426,6 +535,7 @@ function renderSegments() {
             this.style.height = 'auto';
             this.style.height = this.scrollHeight + 'px';
             segmentsData[idx].hu = this.value;
+            markUnsaved();
         });
         huTd.appendChild(huTa);
 
@@ -436,6 +546,7 @@ function renderSegments() {
             this.style.height = 'auto';
             this.style.height = this.scrollHeight + 'px';
             segmentsData[idx].en = this.value;
+            markUnsaved();
         });
         enTd.appendChild(enTa);
 
@@ -459,9 +570,9 @@ async function loadSubtitleQualityReport() {
         const card = document.getElementById('subtitleQualityCard');
         const body = document.getElementById('subtitleQualityBody');
         body.innerHTML = `
-            <span style="margin-right:16px;">📝 <b>${report.total_cues || '–'}</b> felirat cue</span>
-            <span style="margin-right:16px;">⏱ Átlag hossz: <b>${report.avg_dur || '–'}s</b></span>
-            <span style="margin-right:16px;">📏 Átlag chars: <b>${report.avg_chars || '–'}</b></span>
+            <span>📝 <b>${report.total_cues || '–'}</b> felirat cue</span>
+            <span>⏱ Átlag hossz: <b>${report.avg_dur || '–'}s</b></span>
+            <span>📏 Átlag chars: <b>${report.avg_chars || '–'}</b></span>
             <span>🔀 Mergek: <b>${report.merges || 0}</b></span>
         `;
         card.classList.remove('hidden');
